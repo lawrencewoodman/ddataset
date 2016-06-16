@@ -11,7 +11,8 @@ environment:
 
 install:
   - choco install mingw -y
-  - set PATH=%PATH%;C:\mingw64\bin
+  - set PATH=%PATH%;C:\tools\mingw64\bin
+  - echo %PATH%
   - go version
   - go env
   - go get -v -t ./...
