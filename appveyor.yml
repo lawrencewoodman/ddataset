@@ -10,6 +10,7 @@ environment:
   GOPATH: c:\gopath
 
 install:
+  - choco install mingw -y
   - go version
   - go env
   - go get -v -t ./...
