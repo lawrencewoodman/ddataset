@@ -12,52 +12,64 @@ package dsql
 import (
 	"database/sql"
 	"fmt"
+	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/dlit"
-	"github.com/vlifesystems/rulehunter/dataset"
+	"sync"
 )
 
 type DSQL struct {
-	dbInitFunc DBInitFunc
+	dbHandler  DBHandler
+	openConn   int
 	fieldNames []string
+	sync.Mutex
 }
 
 type DSQLConn struct {
 	dataset       *DSQL
-	db            *sql.DB
 	rows          *sql.Rows
 	row           []sql.NullString
 	rowPtrs       []interface{}
-	currentRecord dataset.Record
+	currentRecord ddataset.Record
 	err           error
 }
 
-// The function to open the database and return a pointer to it
-// and the rows to use for the Dataset
-type DBInitFunc func() (*sql.DB, *sql.Rows, error)
+// Interface to handle basic access to the Sql database
+type DBHandler interface {
+	Open() error
+	Rows() (*sql.Rows, error)
+	Close() error
+}
 
-func New(
-	dbInitFunc DBInitFunc,
-	fieldNames []string,
-) dataset.Dataset {
+func New(dbHandler DBHandler, fieldNames []string) ddataset.Dataset {
 	return &DSQL{
-		dbInitFunc: dbInitFunc,
+		dbHandler:  dbHandler,
+		openConn:   0,
 		fieldNames: fieldNames,
 	}
 }
 
-func (s *DSQL) Open() (dataset.Conn, error) {
-	db, rows, err := s.dbInitFunc()
+func (s *DSQL) Open() (ddataset.Conn, error) {
+	s.Lock()
+	if s.openConn == 0 {
+		if err := s.dbHandler.Open(); err != nil {
+			return nil, err
+		}
+	}
+	s.openConn++
+	s.Unlock()
+	rows, err := s.dbHandler.Rows()
 	if err != nil {
+		s.close()
 		return nil, err
 	}
 	columns, err := rows.Columns()
 	if err != nil {
-		db.Close()
+		s.close()
 		return nil, err
 	}
 	numColumns := len(columns)
 	if err := checkTableValid(s.fieldNames, numColumns); err != nil {
-		db.Close()
+		s.close()
 		return nil, err
 	}
 	row := make([]sql.NullString, numColumns)
@@ -68,11 +80,10 @@ func (s *DSQL) Open() (dataset.Conn, error) {
 
 	return &DSQLConn{
 		dataset:       s,
-		db:            db,
 		rows:          rows,
 		row:           row,
 		rowPtrs:       rowPtrs,
-		currentRecord: make(dataset.Record, numColumns),
+		currentRecord: make(ddataset.Record, numColumns),
 		err:           nil,
 	}, nil
 }
@@ -110,39 +121,22 @@ func (sc *DSQLConn) Err() error {
 	return sc.err
 }
 
-func (sc *DSQLConn) Read() dataset.Record {
+func (sc *DSQLConn) Read() ddataset.Record {
 	return sc.currentRecord
 }
 
 func (sc *DSQLConn) Close() error {
-	return sc.db.Close()
+	return sc.dataset.close()
 }
 
-// Returns error if table doesn't exist in database
-func CheckTableExists(driverName string, db *sql.DB, tableName string) error {
-	var rowTableName string
-	var rows *sql.Rows
-	var err error
-	tableNames := make([]string, 0)
-
-	if driverName == "sqlite3" {
-		rows, err = db.Query("select name from sqlite_master where type='table'")
-	} else {
-		rows, err = db.Query("show tables")
-	}
-	if err != nil {
-		return err
-	}
-
-	for rows.Next() {
-		if err := rows.Scan(&rowTableName); err != nil {
-			return err
+func (s *DSQL) close() error {
+	s.Lock()
+	defer s.Unlock()
+	if s.openConn >= 1 {
+		s.openConn--
+		if s.openConn == 0 {
+			return s.dbHandler.Close()
 		}
-		tableNames = append(tableNames, rowTableName)
-	}
-
-	if !inStringsSlice(tableName, tableNames) {
-		return fmt.Errorf("table name doesn't exist: %s", tableName)
 	}
 	return nil
 }

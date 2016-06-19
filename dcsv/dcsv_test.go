@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"syscall"
 	"testing"
 )
@@ -294,9 +295,142 @@ func TestNext_errors(t *testing.T) {
 	}
 }
 
+func TestOpenNextRead_goroutines(t *testing.T) {
+	var numGoroutines int
+	filename := filepath.Join("fixtures", "debt.csv")
+	hasHeader := true
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(filename, hasHeader, ',', fieldNames)
+	if testing.Short() {
+		numGoroutines = 10
+	} else {
+		numGoroutines = 1000
+	}
+	sumBalances := make(chan int64, numGoroutines)
+	wg := sync.WaitGroup{}
+	wg.Add(numGoroutines)
+
+	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
+		defer wg.Done()
+		sum <- sumBalance(ds)
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		go sumBalanceGR(ds, sumBalances)
+	}
+
+	go func() {
+		wg.Wait()
+		close(sumBalances)
+	}()
+
+	sumBalance := <-sumBalances
+	for sum := range sumBalances {
+		if sumBalance != sum {
+			t.Error("sumBalances are not all equal")
+			return
+		}
+	}
+}
+
 /*************************
  *  Benchmarks
  *************************/
+
+func sumBalance(ds ddataset.Dataset) int64 {
+	conn, err := ds.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	sum := int64(0)
+	for conn.Next() {
+		l := conn.Read()["balance"]
+		v, ok := l.Int()
+		if !ok {
+			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
+		}
+		sum += v
+	}
+	return sum
+}
+
+func BenchmarkOpenNextRead(b *testing.B) {
+	filename := filepath.Join("fixtures", "debt.csv")
+	hasHeader := true
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(filename, hasHeader, ',', fieldNames)
+	sumBalances := make([]int64, b.N)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sumBalances[i] = sumBalance(ds)
+	}
+
+	sumBalance := sumBalances[0]
+	for _, s := range sumBalances {
+		if s != sumBalance {
+			b.Error("sumBalances are not all equal")
+			return
+		}
+	}
+
+}
+
+func BenchmarkOpenNextRead_goroutines(b *testing.B) {
+	filename := filepath.Join("fixtures", "debt.csv")
+	hasHeader := true
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(filename, hasHeader, ',', fieldNames)
+	sumBalances := make(chan int64, b.N)
+	wg := sync.WaitGroup{}
+	wg.Add(b.N)
+
+	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
+		defer wg.Done()
+		sum <- sumBalance(ds)
+	}
+
+	for i := 0; i < b.N; i++ {
+		go sumBalanceGR(ds, sumBalances)
+	}
+
+	go func() {
+		wg.Wait()
+		close(sumBalances)
+	}()
+
+	b.ResetTimer()
+	sumBalance := <-sumBalances
+	for sum := range sumBalances {
+		if sumBalance != sum {
+			b.Error("sumBalances are not all equal")
+			return
+		}
+	}
+}
+
 func BenchmarkNext(b *testing.B) {
 	filename := filepath.Join("fixtures", "debt.csv")
 	separator := ','

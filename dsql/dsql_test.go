@@ -9,12 +9,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/dlit"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/vlifesystems/rulehunter/dataset"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ func TestNew(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	if _, ok := ds.(*DSQL); !ok {
 		t.Errorf("New(...) want DSQL type, got type: %T", ds)
 	}
@@ -32,7 +33,7 @@ func TestOpen(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() err: %s", err)
@@ -67,7 +68,7 @@ func TestOpen_errors(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		ds := New(makeDBInit(c.filename, c.tableName), c.fieldNames)
+		ds := New(newDBHandler(c.filename, c.tableName), c.fieldNames)
 		if _, err := ds.Open(); err.Error() != c.wantErr.Error() {
 			t.Errorf("Open() filename: %s, wantErr: %s, got err: %s",
 				c.filename, c.wantErr, err)
@@ -75,38 +76,11 @@ func TestOpen_errors(t *testing.T) {
 	}
 }
 
-func TestCheckTableExists(t *testing.T) {
-	filename := filepath.Join("fixtures", "users.db")
-	tableName := "userinfo"
-	db, err := sql.Open("sqlite3", filename)
-	if err != nil {
-		t.Errorf("sql.Open(\"sqlite3\", \"%s\") - err: %s", filename, err)
-	}
-	if err := CheckTableExists("sqlite3", db, tableName); err != nil {
-		t.Errorf("CheckTableExists() - filename: %s, tableName: %s, err: %s",
-			filename, tableName, err)
-	}
-}
-func TestCheckTableExists_errors(t *testing.T) {
-	filename := filepath.Join("fixtures", "users.db")
-	tableName := "nothere"
-	wantErr := errors.New("table name doesn't exist: nothere")
-	db, err := sql.Open("sqlite3", filename)
-	if err != nil {
-		t.Errorf("sql.Open(\"sqlite3\", \"%s\") - err: %s", filename, err)
-	}
-	err = CheckTableExists("sqlite3", db, tableName)
-	if err.Error() != wantErr.Error() {
-		t.Errorf("CheckTableExists() - filename: %s, tableName: %s, wantErr: %s, gotErr: %s",
-			filename, tableName, wantErr, err)
-	}
-}
-
 func TestGetFieldNames(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	got := ds.GetFieldNames()
 	if !reflect.DeepEqual(got, fieldNames) {
 		t.Errorf("GetFieldNames() - got: %s, want: %s", got, fieldNames)
@@ -118,7 +92,7 @@ func TestNext(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() - filename: %s, err: %s", filename, err)
@@ -141,26 +115,26 @@ func TestRead(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "name", "dpt", "startDate"}
-	wantRecords := []dataset.Record{
-		dataset.Record{
+	wantRecords := []ddataset.Record{
+		ddataset.Record{
 			"uid":       dlit.MustNew(1),
 			"name":      dlit.MustNew("Fred Wilkins"),
 			"dpt":       dlit.MustNew("Logistics"),
 			"startDate": dlit.MustNew("2013-10-05 10:00:00"),
 		},
-		dataset.Record{
+		ddataset.Record{
 			"uid":       dlit.MustNew(2),
 			"name":      dlit.MustNew("Bob Field"),
 			"dpt":       dlit.MustNew("Logistics"),
 			"startDate": dlit.MustNew("2013-05-05 10:00:00"),
 		},
-		dataset.Record{
+		ddataset.Record{
 			"uid":       dlit.MustNew(3),
 			"name":      dlit.MustNew("Ned James"),
 			"dpt":       dlit.MustNew("Shipping"),
 			"startDate": dlit.MustNew("2012-05-05 10:00:00"),
 		},
-		dataset.Record{
+		ddataset.Record{
 			"uid":       dlit.MustNew(4),
 			"name":      dlit.MustNew("Mary Terence"),
 			"dpt":       dlit.MustNew("Shipping"),
@@ -168,7 +142,7 @@ func TestRead(t *testing.T) {
 		},
 	}
 
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() - filename: %s, err: %s", filename, err)
@@ -191,9 +165,141 @@ func TestRead(t *testing.T) {
 	}
 }
 
+func TestOpenNextRead_goroutines(t *testing.T) {
+	var numGoroutines int
+	filename := filepath.Join("fixtures", "debt.db")
+	tableName := "people"
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(newDBHandler(filename, tableName), fieldNames)
+	if testing.Short() {
+		numGoroutines = 10
+	} else {
+		numGoroutines = 1000
+	}
+	sumBalances := make(chan int64, numGoroutines)
+	wg := sync.WaitGroup{}
+	wg.Add(numGoroutines)
+
+	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
+		defer wg.Done()
+		sum <- sumBalance(ds)
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		go sumBalanceGR(ds, sumBalances)
+	}
+
+	go func() {
+		wg.Wait()
+		close(sumBalances)
+	}()
+
+	sumBalance := <-sumBalances
+	for sum := range sumBalances {
+		if sumBalance != sum {
+			t.Error("sumBalances are not all equal")
+			return
+		}
+	}
+}
+
 /*************************
  *  Benchmarks
  *************************/
+func sumBalance(ds ddataset.Dataset) int64 {
+	conn, err := ds.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	sum := int64(0)
+	for conn.Next() {
+		l := conn.Read()["balance"]
+		v, ok := l.Int()
+		if !ok {
+			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
+		}
+		sum += v
+	}
+	return sum
+}
+
+func BenchmarkOpenNextRead(b *testing.B) {
+	filename := filepath.Join("fixtures", "debt.db")
+	tableName := "people"
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(newDBHandler(filename, tableName), fieldNames)
+	sumBalances := make([]int64, b.N)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sumBalances[i] = sumBalance(ds)
+	}
+
+	sumBalance := sumBalances[0]
+	for _, s := range sumBalances {
+		if s != sumBalance {
+			b.Error("sumBalances are not all equal")
+			return
+		}
+	}
+
+}
+
+func BenchmarkOpenNextRead_goroutines(b *testing.B) {
+	filename := filepath.Join("fixtures", "debt.db")
+	tableName := "people"
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := New(newDBHandler(filename, tableName), fieldNames)
+	sumBalances := make(chan int64, b.N)
+	wg := sync.WaitGroup{}
+	wg.Add(b.N)
+
+	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
+		defer wg.Done()
+		sum <- sumBalance(ds)
+	}
+
+	for i := 0; i < b.N; i++ {
+		go sumBalanceGR(ds, sumBalances)
+	}
+
+	go func() {
+		wg.Wait()
+		close(sumBalances)
+	}()
+
+	b.ResetTimer()
+	sumBalance := <-sumBalances
+	for sum := range sumBalances {
+		if sumBalance != sum {
+			b.Error("sumBalances are not all equal")
+			return
+		}
+	}
+}
+
 func BenchmarkNext(b *testing.B) {
 	filename := filepath.Join("fixtures", "debt.db")
 	tableName := "people"
@@ -205,21 +311,17 @@ func BenchmarkNext(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(makeDBInit(filename, tableName), fieldNames)
+	ds := New(newDBHandler(filename, tableName), fieldNames)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		conn, err := ds.Open()
 		if err != nil {
 			b.Errorf("Open() - filename: %s, err: %s", filename, err)
-			return
 		}
-		//defer conn.Close()
 		b.StartTimer()
 		for conn.Next() {
 		}
-		b.StopTimer()
-		conn.Close()
 	}
 }
 
@@ -227,7 +329,7 @@ func BenchmarkNext(b *testing.B) {
  *   Helper functions
  *************************/
 
-func matchRecords(r1 dataset.Record, r2 dataset.Record) bool {
+func matchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
 	if len(r1) != len(r2) {
 		return false
 	}
@@ -239,35 +341,68 @@ func matchRecords(r1 dataset.Record, r2 dataset.Record) bool {
 	return true
 }
 
-func dbOpenWithRows(
-	filename string,
-	tableName string,
-) (*sql.DB, *sql.Rows, error) {
-	if !fileExists(filename) {
-		return nil, nil, fmt.Errorf("database doesn't exist: %s", filename)
-	}
-	db, err := sql.Open("sqlite3", filename)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := CheckTableExists("sqlite3", db, tableName); err != nil {
-		db.Close()
-		return nil, nil, err
-	}
-	rows, err := db.Query(fmt.Sprintf("SELECT * FROM \"%s\"", tableName))
-	if err != nil {
-		db.Close()
-		return nil, nil, err
-	}
-	return db, rows, nil
+type dbHandler struct {
+	filename  string
+	tableName string
+	db        *sql.DB
 }
 
-// Open an sqlite3 database for testing
-func makeDBInit(filename string, tableName string) DBInitFunc {
-	return func() (*sql.DB, *sql.Rows, error) {
-		db, rows, err := dbOpenWithRows(filename, tableName)
-		return db, rows, err
+func newDBHandler(filename, tableName string) *dbHandler {
+	return &dbHandler{
+		filename:  filename,
+		tableName: tableName,
+		db:        nil,
 	}
+}
+
+func (d *dbHandler) Open() error {
+	if !fileExists(d.filename) {
+		return fmt.Errorf("database doesn't exist: %s", d.filename)
+	}
+	db, err := sql.Open("sqlite3", d.filename)
+	d.db = db
+	return err
+}
+
+func (d *dbHandler) Close() error {
+	return d.db.Close()
+}
+
+func (d *dbHandler) Rows() (*sql.Rows, error) {
+	if err := d.checkTableExists(d.tableName); err != nil {
+		d.Close()
+		return nil, err
+	}
+	rows, err := d.db.Query(fmt.Sprintf("SELECT * FROM \"%s\"", d.tableName))
+	if err != nil {
+		d.Close()
+	}
+	return rows, err
+}
+
+// Returns error if table doesn't exist in database
+func (d *dbHandler) checkTableExists(tableName string) error {
+	var rowTableName string
+	var rows *sql.Rows
+	var err error
+	tableNames := make([]string, 0)
+
+	rows, err = d.db.Query("select name from sqlite_master where type='table'")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(&rowTableName); err != nil {
+			return err
+		}
+		tableNames = append(tableNames, rowTableName)
+	}
+
+	if !inStringsSlice(tableName, tableNames) {
+		return fmt.Errorf("table name doesn't exist: %s", tableName)
+	}
+	return nil
 }
 
 func fileExists(path string) bool {
