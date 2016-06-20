@@ -109,6 +109,9 @@ func TestNext(t *testing.T) {
 		t.Errorf("conn.Next() - wantNumRecords: %d, gotNumRecords: %d",
 			wantNumRecords, numRecords)
 	}
+	if err := conn.Err(); err != nil {
+		t.Errorf("conn.Err() - err: %s", err)
+	}
 }
 
 func TestRead(t *testing.T) {

@@ -214,12 +214,11 @@ func TestNext(t *testing.T) {
 		hasHeader      bool
 		fieldNames     []string
 		wantNumRecords int
-		wantErr        error
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';', true,
 			[]string{"age", "job", "marital", "education", "default", "balance",
 				"housing", "loan", "contact", "day", "month", "duration", "campaign",
-				"pdays", "previous", "poutcome", "y"}, 9, nil},
+				"pdays", "previous", "poutcome", "y"}, 9},
 	}
 	for _, c := range cases {
 		ds := New(c.filename, c.hasHeader, c.separator, c.fieldNames)
@@ -234,9 +233,8 @@ func TestNext(t *testing.T) {
 		if conn.Next() {
 			t.Errorf("conn.Next() - Return true, despite having finished")
 		}
-		if !errorMatch(conn.Err(), c.wantErr) {
-			t.Errorf("conn.Err() - filename: %s, want: %s, got: %s",
-				c.filename, c.wantErr, conn.Err())
+		if err := conn.Err(); err != nil {
+			t.Errorf("conn.Err() - filename: %s, err: %s", c.filename, err)
 		}
 		if numRecords != c.wantNumRecords {
 			t.Errorf("conn.Next() - filename: %s, wantNumRecords: %d, gotNumRecords: %d",
