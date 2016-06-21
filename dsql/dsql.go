@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/dlit"
-	"sync"
 )
 
 // DSQL represents a SQL database Dataset
@@ -22,7 +21,6 @@ type DSQL struct {
 	dbHandler  DBHandler
 	openConn   int
 	fieldNames []string
-	sync.Mutex
 }
 
 // DSQLConn represents a connection to a DSQL Dataset
@@ -58,27 +56,22 @@ func New(dbHandler DBHandler, fieldNames []string) ddataset.Dataset {
 
 // Open creates a connection to the Dataset
 func (s *DSQL) Open() (ddataset.Conn, error) {
-	s.Lock()
-	if s.openConn == 0 {
-		if err := s.dbHandler.Open(); err != nil {
-			return nil, err
-		}
+	if err := s.dbHandler.Open(); err != nil {
+		return nil, err
 	}
-	s.openConn++
-	s.Unlock()
 	rows, err := s.dbHandler.Rows()
 	if err != nil {
-		s.close()
+		s.dbHandler.Close()
 		return nil, err
 	}
 	columns, err := rows.Columns()
 	if err != nil {
-		s.close()
+		s.dbHandler.Close()
 		return nil, err
 	}
 	numColumns := len(columns)
 	if err := checkTableValid(s.fieldNames, numColumns); err != nil {
-		s.close()
+		s.dbHandler.Close()
 		return nil, err
 	}
 	row := make([]sql.NullString, numColumns)
@@ -140,19 +133,7 @@ func (sc *DSQLConn) Read() ddataset.Record {
 
 // Close closes the connection
 func (sc *DSQLConn) Close() error {
-	return sc.dataset.close()
-}
-
-func (s *DSQL) close() error {
-	s.Lock()
-	defer s.Unlock()
-	if s.openConn >= 1 {
-		s.openConn--
-		if s.openConn == 0 {
-			return s.dbHandler.Close()
-		}
-	}
-	return nil
+	return sc.dataset.dbHandler.Close()
 }
 
 func (sc *DSQLConn) makeRowCurrentRecord() error {

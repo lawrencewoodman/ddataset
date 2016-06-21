@@ -349,6 +349,8 @@ type dbHandler struct {
 	filename  string
 	tableName string
 	db        *sql.DB
+	openConn  int
+	sync.Mutex
 }
 
 func newDBHandler(filename, tableName string) *dbHandler {
@@ -356,20 +358,35 @@ func newDBHandler(filename, tableName string) *dbHandler {
 		filename:  filename,
 		tableName: tableName,
 		db:        nil,
+		openConn:  0,
 	}
 }
 
 func (d *dbHandler) Open() error {
-	if !fileExists(d.filename) {
-		return fmt.Errorf("database doesn't exist: %s", d.filename)
+	d.Lock()
+	defer d.Unlock()
+	if d.openConn == 0 {
+		if !fileExists(d.filename) {
+			return fmt.Errorf("database doesn't exist: %s", d.filename)
+		}
+		db, err := sql.Open("sqlite3", d.filename)
+		d.db = db
+		return err
 	}
-	db, err := sql.Open("sqlite3", d.filename)
-	d.db = db
-	return err
+	d.openConn++
+	return nil
 }
 
 func (d *dbHandler) Close() error {
-	return d.db.Close()
+	d.Lock()
+	defer d.Unlock()
+	if d.openConn >= 1 {
+		d.openConn--
+		if d.openConn == 0 {
+			return d.db.Close()
+		}
+	}
+	return nil
 }
 
 func (d *dbHandler) Rows() (*sql.Rows, error) {
