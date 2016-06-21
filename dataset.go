@@ -18,15 +18,23 @@ var ErrConnClosed = errors.New("connection has been closed")
 var ErrWrongNumFields = errors.New("wrong number of field names for dataset")
 
 type Dataset interface {
+	// Open creates a connection to the Dataset
 	Open() (Conn, error)
+	// GetFieldNames returns the field names used by the Dataset
 	GetFieldNames() []string
 }
 
+// Conn represents a connection to a Dataset
 type Conn interface {
+	// Next returns whether there is a Record to be Read
 	Next() bool
+	// Err returns any errors from the connection
 	Err() error
+	// Read returns the current Record
 	Read() Record
+	// Close closes the connection
 	Close() error
 }
 
+// Record represents a single record/row from the Dataset
 type Record map[string]*dlit.Literal

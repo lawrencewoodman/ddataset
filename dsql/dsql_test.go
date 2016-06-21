@@ -383,7 +383,7 @@ func (d *dbHandler) Rows() (*sql.Rows, error) {
 	return rows, err
 }
 
-// Returns error if table doesn't exist in database
+// checkTableExists returns error if table doesn't exist in database
 func (d *dbHandler) checkTableExists(tableName string) error {
 	var rowTableName string
 	var rows *sql.Rows

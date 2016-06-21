@@ -17,6 +17,7 @@ import (
 	"os"
 )
 
+// DCSV represents a CSV file Dataset
 type DCSV struct {
 	filename   string
 	fieldNames []string
@@ -25,6 +26,7 @@ type DCSV struct {
 	numFields  int
 }
 
+// DCSVConn represents a connection to a DCSV Dataset
 type DCSVConn struct {
 	dataset       *DCSV
 	file          *os.File
@@ -33,6 +35,7 @@ type DCSVConn struct {
 	err           error
 }
 
+// New creates a new DCSV Dataset
 func New(
 	filename string,
 	hasHeader bool,
@@ -48,6 +51,7 @@ func New(
 	}
 }
 
+// Open creates a connection to the Dataset
 func (c *DCSV) Open() (ddataset.Conn, error) {
 	f, r, err := makeCsvReader(c.filename, c.separator, c.hasHeader)
 	if err != nil {
@@ -64,10 +68,12 @@ func (c *DCSV) Open() (ddataset.Conn, error) {
 	}, nil
 }
 
+// GetFieldNames returns the field names used by the Dataset
 func (c *DCSV) GetFieldNames() []string {
 	return c.fieldNames
 }
 
+// Next returns whether there is a Record to be Read
 func (cc *DCSVConn) Next() bool {
 	if cc.err != nil {
 		return false
@@ -92,14 +98,17 @@ func (cc *DCSVConn) Next() bool {
 	return true
 }
 
+// Err returns any errors from the connection
 func (cc *DCSVConn) Err() error {
 	return cc.err
 }
 
+// Read returns the current Record
 func (cc *DCSVConn) Read() ddataset.Record {
 	return cc.currentRecord
 }
 
+// Close closes the connection
 func (cc *DCSVConn) Close() error {
 	err := cc.file.Close()
 	cc.file = nil

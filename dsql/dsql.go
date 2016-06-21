@@ -17,6 +17,7 @@ import (
 	"sync"
 )
 
+// DSQL represents a SQL database Dataset
 type DSQL struct {
 	dbHandler  DBHandler
 	openConn   int
@@ -24,6 +25,7 @@ type DSQL struct {
 	sync.Mutex
 }
 
+// DSQLConn represents a connection to a DSQL Dataset
 type DSQLConn struct {
 	dataset       *DSQL
 	rows          *sql.Rows
@@ -35,11 +37,17 @@ type DSQLConn struct {
 
 // Interface to handle basic access to the Sql database
 type DBHandler interface {
+	// Open opens the database
 	Open() error
+	// Rows returns the rows for the database with each row having
+	// the same number and same order of fields as those passed
+	// to New.  However, the fields don't have to have the same names.
 	Rows() (*sql.Rows, error)
+	// Close closes the database
 	Close() error
 }
 
+// New creates a new DSQL Dataset
 func New(dbHandler DBHandler, fieldNames []string) ddataset.Dataset {
 	return &DSQL{
 		dbHandler:  dbHandler,
@@ -48,6 +56,7 @@ func New(dbHandler DBHandler, fieldNames []string) ddataset.Dataset {
 	}
 }
 
+// Open creates a connection to the Dataset
 func (s *DSQL) Open() (ddataset.Conn, error) {
 	s.Lock()
 	if s.openConn == 0 {
@@ -88,10 +97,12 @@ func (s *DSQL) Open() (ddataset.Conn, error) {
 	}, nil
 }
 
+// GetFieldNames returns the field names used by the Dataset
 func (s *DSQL) GetFieldNames() []string {
 	return s.fieldNames
 }
 
+// Next returns whether there is a Record to be Read
 func (sc *DSQLConn) Next() bool {
 	if sc.err != nil {
 		return false
@@ -117,14 +128,17 @@ func (sc *DSQLConn) Next() bool {
 	return false
 }
 
+// Err returns any errors from the connection
 func (sc *DSQLConn) Err() error {
 	return sc.err
 }
 
+// Read returns the current Record
 func (sc *DSQLConn) Read() ddataset.Record {
 	return sc.currentRecord
 }
 
+// Close closes the connection
 func (sc *DSQLConn) Close() error {
 	return sc.dataset.close()
 }
