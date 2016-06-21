@@ -14,7 +14,11 @@ import (
 	"github.com/lawrencewoodman/dlit"
 )
 
+// ErrConnClosed indicates a connection has been closed
 var ErrConnClosed = errors.New("connection has been closed")
+
+// ErrWrongNumFields indicates that the wrong number of field names has
+// been given for the Dataset
 var ErrWrongNumFields = errors.New("wrong number of field names for dataset")
 
 type Dataset interface {

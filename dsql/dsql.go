@@ -35,7 +35,7 @@ type DSQLConn struct {
 	err           error
 }
 
-// Interface to handle basic access to the Sql database
+// DBHandler handles basic access to an Sql database
 type DBHandler interface {
 	// Open opens the database
 	Open() error
