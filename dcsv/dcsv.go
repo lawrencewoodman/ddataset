@@ -132,13 +132,7 @@ func (cc *DCSVConn) makeRowCurrentRecord(row []string) error {
 		return cc.err
 	}
 	for i, field := range row {
-		l, err := dlit.New(field)
-		if err != nil {
-			cc.Close()
-			cc.err = err
-			return err
-		}
-		cc.currentRecord[fieldNames[i]] = l
+		cc.currentRecord[fieldNames[i]] = dlit.NewString(field)
 	}
 	return nil
 }
