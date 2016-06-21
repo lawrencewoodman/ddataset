@@ -27,7 +27,8 @@ func TestNew(t *testing.T) {
 	for _, c := range cases {
 		ds := New(c.filename, true, ';', c.fieldNames)
 		if _, ok := ds.(*DCSV); !ok {
-			t.Errorf("New(filename: %s...) want DCSV type, got type: %T", ds)
+			t.Errorf("New(filename: %s...) want DCSV type, got type: %T",
+				c.filename, ds)
 		}
 	}
 }
