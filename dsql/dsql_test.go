@@ -433,3 +433,12 @@ func fileExists(path string) bool {
 	}
 	return fi.Mode().IsRegular()
 }
+
+func inStringsSlice(needle string, haystack []string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
+}

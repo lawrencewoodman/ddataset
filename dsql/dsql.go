@@ -162,12 +162,3 @@ func checkTableValid(fieldNames []string, numColumns int) error {
 	}
 	return nil
 }
-
-func inStringsSlice(needle string, haystack []string) bool {
-	for _, v := range haystack {
-		if v == needle {
-			return true
-		}
-	}
-	return false
-}
