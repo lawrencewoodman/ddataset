@@ -83,7 +83,7 @@ func (s *DSQL) Open() (ddataset.Conn, error) {
 	}
 	row := make([]sql.NullString, numColumns)
 	rowPtrs := make([]interface{}, numColumns)
-	for i, _ := range s.fieldNames {
+	for i := range s.fieldNames {
 		rowPtrs[i] = &row[i]
 	}
 
