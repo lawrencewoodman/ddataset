@@ -21,6 +21,7 @@ var ErrConnClosed = errors.New("connection has been closed")
 // been given for the Dataset
 var ErrWrongNumFields = errors.New("wrong number of field names for dataset")
 
+// Dataset provides access to a data source
 type Dataset interface {
 	// Open creates a connection to the Dataset
 	Open() (Conn, error)

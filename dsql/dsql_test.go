@@ -3,6 +3,7 @@
 // TODO: Test Open most fully for errors - using a mock database
 // TODO: Generate an error from Next() by creating a database then closing it
 //       after one run through for next() loop then run next() again
+
 package dsql
 
 import (
