@@ -7,9 +7,9 @@ go:
 before_install:
   - go get github.com/mattn/goveralls
   - go get golang.org/x/tools/cmd/cover
-  - go get github.com/go-playground/overalls
+  - go get github.com/lawrencewoodman/roveralls
 
 script:
   - go test -v ./...
-  - $HOME/gopath/bin/overalls -project=github.com/lawrencewoodman/ddataset
-  - $HOME/gopath/bin/goveralls -coverprofile=overalls.coverprofile -service=travis-ci
+  - $HOME/gopath/bin/roveralls -short
+  - $HOME/gopath/bin/goveralls -coverprofile=roveralls.coverprofile -service=travis-ci
