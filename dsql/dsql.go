@@ -155,7 +155,7 @@ func (sc *DSQLConn) makeRowCurrentRecord() error {
 }
 
 func checkTableValid(fieldNames []string, numColumns int) error {
-	if len(fieldNames) < numColumns {
+	if len(fieldNames) != numColumns {
 		return fmt.Errorf(
 			"number of field names doesn't match number of columns in table",
 		)
