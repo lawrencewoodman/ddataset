@@ -185,7 +185,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	if testing.Short() {
 		numGoroutines = 10
 	} else {
-		numGoroutines = 1000
+		numGoroutines = 700
 	}
 	sumBalances := make(chan int64, numGoroutines)
 	wg := sync.WaitGroup{}
