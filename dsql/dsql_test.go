@@ -89,7 +89,7 @@ func TestGetFieldNames(t *testing.T) {
 }
 
 func TestNext(t *testing.T) {
-	wantNumRecords := 4
+	wantNumRecords := 5
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
@@ -143,6 +143,12 @@ func TestRead(t *testing.T) {
 			"name":      dlit.MustNew("Mary Terence"),
 			"dpt":       dlit.MustNew("Shipping"),
 			"startDate": dlit.MustNew("2011-05-05 10:00:00"),
+		},
+		ddataset.Record{
+			"uid":       dlit.MustNew(5),
+			"name":      dlit.MustNew("George Eliot"),
+			"dpt":       dlit.MustNew(""),
+			"startDate": dlit.MustNew("2010-05-05 10:00:00"),
 		},
 	}
 
