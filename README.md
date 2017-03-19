@@ -7,6 +7,8 @@ Subpackages
 
 dcsv: Package to access a CSV file as Dataset
 dsql: Package to access an SQL database as a Dataset
+dcache: Package to cache a Dataset to improve access speed
+dtruncate: Package to truncate a Dataset
 
 Contributing
 ------------

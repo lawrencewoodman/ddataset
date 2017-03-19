@@ -43,3 +43,11 @@ type Conn interface {
 
 // Record represents a single record/row from the Dataset
 type Record map[string]*dlit.Literal
+
+func (r Record) Clone() Record {
+	ret := make(Record, len(r))
+	for k, v := range r {
+		ret[k] = v
+	}
+	return ret
+}

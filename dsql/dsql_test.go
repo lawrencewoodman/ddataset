@@ -191,7 +191,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	if testing.Short() {
 		numGoroutines = 10
 	} else {
-		numGoroutines = 700
+		numGoroutines = 500
 	}
 	sumBalances := make(chan int64, numGoroutines)
 	wg := sync.WaitGroup{}
@@ -259,6 +259,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sumBalances[i] = sumBalance(ds)
 	}
+	b.StopTimer()
 
 	sumBalance := sumBalances[0]
 	for _, s := range sumBalances {

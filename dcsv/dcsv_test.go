@@ -310,7 +310,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	if testing.Short() {
 		numGoroutines = 10
 	} else {
-		numGoroutines = 1000
+		numGoroutines = 500
 	}
 	sumBalances := make(chan int64, numGoroutines)
 	wg := sync.WaitGroup{}
@@ -343,24 +343,6 @@ func TestOpenNextRead_goroutines(t *testing.T) {
  *  Benchmarks
  *************************/
 
-func sumBalance(ds ddataset.Dataset) int64 {
-	conn, err := ds.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	sum := int64(0)
-	for conn.Next() {
-		l := conn.Read()["balance"]
-		v, ok := l.Int()
-		if !ok {
-			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
-		}
-		sum += v
-	}
-	return sum
-}
-
 func BenchmarkOpenNextRead(b *testing.B) {
 	filename := filepath.Join("fixtures", "debt.csv")
 	hasHeader := true
@@ -379,6 +361,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sumBalances[i] = sumBalance(ds)
 	}
+	b.StopTimer()
 
 	sumBalance := sumBalances[0]
 	for _, s := range sumBalances {
@@ -387,7 +370,6 @@ func BenchmarkOpenNextRead(b *testing.B) {
 			return
 		}
 	}
-
 }
 
 func BenchmarkOpenNextRead_goroutines(b *testing.B) {
@@ -424,7 +406,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 	sumBalance := <-sumBalances
 	for sum := range sumBalances {
 		if sumBalance != sum {
-			b.Error("sumBalances are not all equal")
+			b.Fatal("sumBalances are not all equal")
 			return
 		}
 	}
@@ -503,4 +485,22 @@ func checkPathErrorMatch(
 		return fmt.Errorf("wanted perr.Err: %s, got: %s", perr.Err, wantErr.Err)
 	}
 	return nil
+}
+
+func sumBalance(ds ddataset.Dataset) int64 {
+	conn, err := ds.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	sum := int64(0)
+	for conn.Next() {
+		l := conn.Read()["balance"]
+		v, ok := l.Int()
+		if !ok {
+			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
+		}
+		sum += v
+	}
+	return sum
 }
