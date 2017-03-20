@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/ddataset/dcsv"
+	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,7 +57,7 @@ func TestNew(t *testing.T) {
 		cds := New(ds, c.maxCacheRows)
 
 		for i := 0; i < 10; i++ {
-			if err := checkDatasetsEqual(ds, cds); err != nil {
+			if err := testhelpers.CheckDatasetsEqual(ds, cds); err != nil {
 				t.Fatalf("checkDatasetsEqual err: %s", err)
 			}
 		}
@@ -111,7 +112,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("cds.Open() err: %s", err)
 		}
 
-		if err := checkDatasetConnsEqual(dsConn, cdsConn); err != nil {
+		if err := testhelpers.CheckDatasetConnsEqual(dsConn, cdsConn); err != nil {
 			t.Errorf("checkDatasetConnsEqual err: %s", err)
 		}
 	}
@@ -172,7 +173,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cds.Open() err: %s", err)
 			}
-			if err := checkDatasetConnsEqual(cdsConnRef, c); err != nil {
+			if err := testhelpers.CheckDatasetConnsEqual(cdsConnRef, c); err != nil {
 				t.Fatalf("checkDatasetsEqual err: %s", err)
 			}
 		}
@@ -187,7 +188,7 @@ func TestOpen_errors(t *testing.T) {
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds := New(ds, maxCacheRows)
 	_, err := rds.Open()
-	if err := checkPathErrorMatch(err, wantErr); err != nil {
+	if err := testhelpers.CheckPathErrorMatch(err, wantErr); err != nil {
 		t.Errorf("Open() - filename: %s - problem with error: %s",
 			filename, err)
 	}
@@ -323,7 +324,7 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 	sumBalances := make([]int64, numSums)
 
 	for i := 0; i < numSums; i++ {
-		sumBalances[i] = sumBalance(cds)
+		sumBalances[i] = testhelpers.SumBalance(cds)
 	}
 
 	sumBalance := sumBalances[0]
@@ -366,7 +367,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 
 		sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 			defer wg.Done()
-			sum <- sumBalance(ds)
+			sum <- testhelpers.SumBalance(ds)
 		}
 
 		for i := 0; i < numGoroutines; i++ {
@@ -418,7 +419,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				sumBalances[i] = sumBalance(cds)
+				sumBalances[i] = testhelpers.SumBalance(cds)
 			}
 			b.StopTimer()
 
@@ -459,7 +460,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 
 			sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 				defer wg.Done()
-				sum <- sumBalance(ds)
+				sum <- testhelpers.SumBalance(ds)
 			}
 
 			for i := 0; i < b.N; i++ {
@@ -518,94 +519,4 @@ func BenchmarkNext(b *testing.B) {
 			}
 		})
 	}
-}
-
-/*************************
- *   Helper functions
- *************************/
-func checkDatasetsEqual(d1, d2 ddataset.Dataset) error {
-	c1, err := d1.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer c1.Close()
-	c2, err := d2.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer c2.Close()
-	return checkDatasetConnsEqual(c1, c2)
-}
-
-func checkDatasetConnsEqual(c1, c2 ddataset.Conn) error {
-	for {
-		c1Next := c1.Next()
-		c2Next := c2.Next()
-		if c1Next != c2Next {
-			return errors.New("datasets don't finish at same point")
-		}
-		if !c1Next {
-			break
-		}
-
-		c1Record := c1.Read()
-		c2Record := c2.Read()
-		if !matchRecords(c1Record, c2Record) {
-			return errors.New("datasets don't match")
-		}
-	}
-	if c1.Err() != c2.Err() {
-		return errors.New("datasets final error doesn't match")
-	}
-	return nil
-}
-
-func matchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
-	if len(r1) != len(r2) {
-		return false
-	}
-	for fieldName, value := range r1 {
-		if value.String() != r2[fieldName].String() {
-			return false
-		}
-	}
-	return true
-}
-
-func checkPathErrorMatch(
-	checkErr error,
-	wantErr *os.PathError,
-) error {
-	perr, ok := checkErr.(*os.PathError)
-	if !ok {
-		return errors.New("error isn't a os.PathError")
-	}
-	if perr.Op != wantErr.Op {
-		return fmt.Errorf("wanted perr.Op: %s, got: %s", perr.Op, wantErr.Op)
-	}
-	if filepath.Clean(perr.Path) != filepath.Clean(wantErr.Path) {
-		return fmt.Errorf("wanted perr.Path: %s, got: %s", perr.Path, wantErr.Path)
-	}
-	if perr.Err != wantErr.Err {
-		return fmt.Errorf("wanted perr.Err: %s, got: %s", perr.Err, wantErr.Err)
-	}
-	return nil
-}
-
-func sumBalance(ds ddataset.Dataset) int64 {
-	conn, err := ds.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	sum := int64(0)
-	for conn.Next() {
-		l := conn.Read()["balance"]
-		v, ok := l.Int()
-		if !ok {
-			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
-		}
-		sum += v
-	}
-	return sum
 }

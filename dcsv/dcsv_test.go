@@ -3,8 +3,8 @@ package dcsv
 import (
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"github.com/lawrencewoodman/ddataset"
+	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
 	"github.com/lawrencewoodman/dlit"
 	"os"
 	"path/filepath"
@@ -57,7 +57,7 @@ func TestOpen_errors(t *testing.T) {
 	wantErr := &os.PathError{"open", "missing.csv", syscall.ENOENT}
 	ds := New(filename, true, ';', fieldNames)
 	_, err := ds.Open()
-	if err := checkPathErrorMatch(err, wantErr); err != nil {
+	if err := testhelpers.CheckPathErrorMatch(err, wantErr); err != nil {
 		t.Errorf("Open() - filename: %s - problem with error: %s",
 			filename, err)
 	}
@@ -148,7 +148,8 @@ func TestRead(t *testing.T) {
 				t.Errorf("Read() - filename: %s, gotNumColumns: %d, want: %d",
 					c.filename, gotNumColumns, c.wantNumColumns)
 			}
-			if gotNumRows == 2 && !matchRecords(record, c.wantThirdRecord) {
+			if gotNumRows == 2 &&
+				!testhelpers.MatchRecords(record, c.wantThirdRecord) {
 				t.Errorf("Read() - filename: %s, got: %s, want: %s",
 					c.filename, record, c.wantThirdRecord)
 			}
@@ -288,7 +289,7 @@ func TestNext_errors(t *testing.T) {
 		if conn.Next() {
 			t.Errorf("conn.Next() - Return true, despite connection being closed")
 		}
-		if !errorMatch(conn.Err(), c.wantErr) {
+		if !testhelpers.ErrorMatch(conn.Err(), c.wantErr) {
 			t.Errorf("conn.Err() - err: %s, want err: %s", conn.Err(), c.wantErr)
 		}
 	}
@@ -318,7 +319,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 
 	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 		defer wg.Done()
-		sum <- sumBalance(ds)
+		sum <- testhelpers.SumBalance(ds)
 	}
 
 	for i := 0; i < numGoroutines; i++ {
@@ -359,7 +360,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sumBalances[i] = sumBalance(ds)
+		sumBalances[i] = testhelpers.SumBalance(ds)
 	}
 	b.StopTimer()
 
@@ -390,7 +391,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 
 	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 		defer wg.Done()
-		sum <- sumBalance(ds)
+		sum <- testhelpers.SumBalance(ds)
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -436,71 +437,4 @@ func BenchmarkNext(b *testing.B) {
 		for conn.Next() {
 		}
 	}
-}
-
-/*************************
- *   Helper functions
- *************************/
-
-func matchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
-	if len(r1) != len(r2) {
-		return false
-	}
-	for fieldName, value := range r1 {
-		if value.String() != r2[fieldName].String() {
-			return false
-		}
-	}
-	return true
-}
-
-func errorMatch(e1 error, e2 error) bool {
-	if e1 == nil && e2 == nil {
-		return true
-	}
-	if e1 == nil || e2 == nil {
-		return false
-	}
-	if e1.Error() == e2.Error() {
-		return true
-	}
-	return false
-}
-
-func checkPathErrorMatch(
-	checkErr error,
-	wantErr *os.PathError,
-) error {
-	perr, ok := checkErr.(*os.PathError)
-	if !ok {
-		return errors.New("error isn't a os.PathError")
-	}
-	if perr.Op != wantErr.Op {
-		return fmt.Errorf("wanted perr.Op: %s, got: %s", perr.Op, wantErr.Op)
-	}
-	if filepath.Clean(perr.Path) != filepath.Clean(wantErr.Path) {
-		return fmt.Errorf("wanted perr.Path: %s, got: %s", perr.Path, wantErr.Path)
-	}
-	if perr.Err != wantErr.Err {
-		return fmt.Errorf("wanted perr.Err: %s, got: %s", perr.Err, wantErr.Err)
-	}
-	return nil
-}
-
-func sumBalance(ds ddataset.Dataset) int64 {
-	conn, err := ds.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	sum := int64(0)
-	for conn.Next() {
-		l := conn.Read()["balance"]
-		v, ok := l.Int()
-		if !ok {
-			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
-		}
-		sum += v
-	}
-	return sum
 }

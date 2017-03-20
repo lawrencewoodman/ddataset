@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/lawrencewoodman/ddataset"
+	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
 	"github.com/lawrencewoodman/dlit"
 	_ "github.com/mattn/go-sqlite3"
 	"os"
@@ -166,7 +167,7 @@ func TestRead(t *testing.T) {
 			return
 		}
 		record := conn.Read()
-		if !matchRecords(record, wantRecord) {
+		if !testhelpers.MatchRecords(record, wantRecord) {
 			t.Errorf("Read() got: %s, want: %s", record, wantRecord)
 		}
 		if err := conn.Err(); err != nil {
@@ -199,7 +200,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 
 	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 		defer wg.Done()
-		sum <- sumBalance(ds)
+		sum <- testhelpers.SumBalance(ds)
 	}
 
 	for i := 0; i < numGoroutines; i++ {
@@ -223,23 +224,6 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 /*************************
  *  Benchmarks
  *************************/
-func sumBalance(ds ddataset.Dataset) int64 {
-	conn, err := ds.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	sum := int64(0)
-	for conn.Next() {
-		l := conn.Read()["balance"]
-		v, ok := l.Int()
-		if !ok {
-			panic(fmt.Sprintf("balance can't be read as an int: %s", l))
-		}
-		sum += v
-	}
-	return sum
-}
 
 func BenchmarkOpenNextRead(b *testing.B) {
 	filename := filepath.Join("fixtures", "debt.db")
@@ -257,7 +241,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sumBalances[i] = sumBalance(ds)
+		sumBalances[i] = testhelpers.SumBalance(ds)
 	}
 	b.StopTimer()
 
@@ -289,7 +273,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 
 	sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
 		defer wg.Done()
-		sum <- sumBalance(ds)
+		sum <- testhelpers.SumBalance(ds)
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -339,18 +323,6 @@ func BenchmarkNext(b *testing.B) {
 /*************************
  *   Helper functions
  *************************/
-
-func matchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
-	if len(r1) != len(r2) {
-		return false
-	}
-	for fieldName, value := range r1 {
-		if value.String() != r2[fieldName].String() {
-			return false
-		}
-	}
-	return true
-}
 
 type dbHandler struct {
 	filename  string

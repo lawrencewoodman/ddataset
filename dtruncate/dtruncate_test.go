@@ -3,9 +3,9 @@ package dtruncate
 import (
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/ddataset/dcsv"
+	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
 	"github.com/lawrencewoodman/dlit"
 	"os"
 	"path/filepath"
@@ -43,7 +43,7 @@ func TestOpen_errors(t *testing.T) {
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds := New(ds, numRecords)
 	_, err := rds.Open()
-	if err := checkPathErrorMatch(err, wantErr); err != nil {
+	if err := testhelpers.CheckPathErrorMatch(err, wantErr); err != nil {
 		t.Errorf("Open() - filename: %s - problem with error: %s",
 			filename, err)
 	}
@@ -139,7 +139,8 @@ func TestRead(t *testing.T) {
 				t.Errorf("Read() - filename: %s, gotNumColumns: %d, want: %d",
 					c.filename, gotNumColumns, c.wantNumColumns)
 			}
-			if gotNumRecords == 3 && !matchRecords(record, c.wantThirdRecord) {
+			if gotNumRecords == 3 &&
+				!testhelpers.MatchRecords(record, c.wantThirdRecord) {
 				t.Errorf("Read() - filename: %s, got: %s, want: %s",
 					c.filename, record, c.wantThirdRecord)
 			}
@@ -286,63 +287,4 @@ func TestNext_errors(t *testing.T) {
 			t.Errorf("conn.Err() - err: %s, want err: %s", conn.Err(), c.wantErr)
 		}
 	}
-}
-
-/*************************
- *   Helper functions
- *************************/
-
-func checkDatasetsEqual(i1, i2 ddataset.Conn) error {
-	for {
-		i1Next := i1.Next()
-		i2Next := i2.Next()
-		if i1Next != i2Next {
-			return errors.New("Datasets don't finish at same point")
-		}
-		if !i1Next {
-			break
-		}
-
-		i1Record := i1.Read()
-		i2Record := i2.Read()
-		if !matchRecords(i1Record, i2Record) {
-			return errors.New("Datasets don't match")
-		}
-	}
-	if i1.Err() != i2.Err() {
-		return errors.New("Datasets final error doesn't match")
-	}
-	return nil
-}
-
-func matchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
-	if len(r1) != len(r2) {
-		return false
-	}
-	for fieldName, value := range r1 {
-		if value.String() != r2[fieldName].String() {
-			return false
-		}
-	}
-	return true
-}
-
-func checkPathErrorMatch(
-	checkErr error,
-	wantErr *os.PathError,
-) error {
-	perr, ok := checkErr.(*os.PathError)
-	if !ok {
-		return errors.New("error isn't a os.PathError")
-	}
-	if perr.Op != wantErr.Op {
-		return fmt.Errorf("wanted perr.Op: %s, got: %s", perr.Op, wantErr.Op)
-	}
-	if filepath.Clean(perr.Path) != filepath.Clean(wantErr.Path) {
-		return fmt.Errorf("wanted perr.Path: %s, got: %s", perr.Path, wantErr.Path)
-	}
-	if perr.Err != wantErr.Err {
-		return fmt.Errorf("wanted perr.Err: %s, got: %s", perr.Err, wantErr.Err)
-	}
-	return nil
 }
