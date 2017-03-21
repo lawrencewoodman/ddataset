@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 )
 
+// CheckDatasetsEqual returns an error if Datasets are not equal
 func CheckDatasetsEqual(d1, d2 ddataset.Dataset) error {
 	c1, err := d1.Open()
 	if err != nil {
@@ -23,6 +24,7 @@ func CheckDatasetsEqual(d1, d2 ddataset.Dataset) error {
 	return CheckDatasetConnsEqual(c1, c2)
 }
 
+// CheckDatasetConnsEqual returns an error if Conns are not equal
 func CheckDatasetConnsEqual(c1, c2 ddataset.Conn) error {
 	for {
 		c1Next := c1.Next()
@@ -45,6 +47,8 @@ func CheckDatasetConnsEqual(c1, c2 ddataset.Conn) error {
 	}
 	return nil
 }
+
+// MatchRecords returns whether two records are equal
 func MatchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
 	if len(r1) != len(r2) {
 		return false
@@ -57,6 +61,7 @@ func MatchRecords(r1 ddataset.Record, r2 ddataset.Record) bool {
 	return true
 }
 
+// SumBalance returns the sum of 'balance' field for all records in a Dataset
 func SumBalance(ds ddataset.Dataset) int64 {
 	conn, err := ds.Open()
 	if err != nil {
@@ -75,6 +80,7 @@ func SumBalance(ds ddataset.Dataset) int64 {
 	return sum
 }
 
+// ErrorMatch returns whether two errors match
 func ErrorMatch(e1 error, e2 error) bool {
 	if e1 == nil && e2 == nil {
 		return true
@@ -88,6 +94,8 @@ func ErrorMatch(e1 error, e2 error) bool {
 	return false
 }
 
+// CheckPathErrorMatch returns an error if an error doesn't matche a
+// PathError
 func CheckPathErrorMatch(checkErr error, wantErr *os.PathError) error {
 	perr, ok := checkErr.(*os.PathError)
 	if !ok {
