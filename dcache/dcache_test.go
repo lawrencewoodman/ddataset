@@ -161,7 +161,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
 		cds := New(ds, c.maxCacheRows)
 		cdsConns := make([]ddataset.Conn, numConns)
-		for i, _ := range cdsConns {
+		for i := range cdsConns {
 			cdsConns[i], err = cds.Open()
 			if err != nil {
 				t.Fatalf("cds.Open() err: %s", err)
