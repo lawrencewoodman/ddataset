@@ -194,7 +194,7 @@ func TestOpen_errors(t *testing.T) {
 	}
 }
 
-func TestGetFieldNames(t *testing.T) {
+func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	fieldNames := []string{
 		"age", "job", "marital", "education", "default", "balance",
@@ -205,9 +205,9 @@ func TestGetFieldNames(t *testing.T) {
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds := New(ds, maxCacheRows)
 
-	got := rds.GetFieldNames()
+	got := rds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
-		t.Errorf("GetFieldNames() - got: %s, want: %s", got, fieldNames)
+		t.Errorf("Fields() - got: %s, want: %s", got, fieldNames)
 	}
 }
 

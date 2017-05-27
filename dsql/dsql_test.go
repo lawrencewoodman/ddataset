@@ -78,14 +78,14 @@ func TestOpen_errors(t *testing.T) {
 	}
 }
 
-func TestGetFieldNames(t *testing.T) {
+func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
 	ds := New(newDBHandler(filename, tableName), fieldNames)
-	got := ds.GetFieldNames()
+	got := ds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
-		t.Errorf("GetFieldNames() - got: %s, want: %s", got, fieldNames)
+		t.Errorf("Fields() - got: %s, want: %s", got, fieldNames)
 	}
 }
 
