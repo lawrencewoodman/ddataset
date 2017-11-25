@@ -7,25 +7,24 @@
 package dsql
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/lawrencewoodman/ddataset"
-	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
-	"github.com/lawrencewoodman/dlit"
-	_ "github.com/mattn/go-sqlite3"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/lawrencewoodman/ddataset"
+	"github.com/lawrencewoodman/ddataset/internal"
+	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
+	"github.com/lawrencewoodman/dlit"
 )
 
 func TestNew(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	if _, ok := ds.(*DSQL); !ok {
 		t.Errorf("New(...) want DSQL type, got type: %T", ds)
 	}
@@ -35,7 +34,7 @@ func TestOpen(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() err: %s", err)
@@ -70,7 +69,10 @@ func TestOpen_errors(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		ds := New(newDBHandler(c.filename, c.tableName), c.fieldNames)
+		ds := New(
+			internal.NewSqlite3Handler(c.filename, c.tableName, ""),
+			c.fieldNames,
+		)
 		if _, err := ds.Open(); err.Error() != c.wantErr.Error() {
 			t.Errorf("Open() filename: %s, wantErr: %s, got err: %s",
 				c.filename, c.wantErr, err)
@@ -82,7 +84,10 @@ func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(
+		internal.NewSqlite3Handler(filename, tableName, ""),
+		fieldNames,
+	)
 	got := ds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
 		t.Errorf("Fields() - got: %s, want: %s", got, fieldNames)
@@ -94,7 +99,10 @@ func TestNext(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(
+		internal.NewSqlite3Handler(filename, tableName, ""),
+		fieldNames,
+	)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() - filename: %s, err: %s", filename, err)
@@ -153,7 +161,10 @@ func TestRead(t *testing.T) {
 		},
 	}
 
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(
+		internal.NewSqlite3Handler(filename, tableName, ""),
+		fieldNames,
+	)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() - filename: %s, err: %s", filename, err)
@@ -188,7 +199,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	if testing.Short() {
 		numGoroutines = 10
 	} else {
@@ -236,7 +247,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	sumBalances := make([]int64, b.N)
 
 	b.ResetTimer()
@@ -266,7 +277,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	sumBalances := make(chan int64, b.N)
 	wg := sync.WaitGroup{}
 	wg.Add(b.N)
@@ -306,7 +317,7 @@ func BenchmarkNext(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(newDBHandler(filename, tableName), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -318,106 +329,4 @@ func BenchmarkNext(b *testing.B) {
 		for conn.Next() {
 		}
 	}
-}
-
-/*************************
- *   Helper functions
- *************************/
-
-type dbHandler struct {
-	filename  string
-	tableName string
-	db        *sql.DB
-	openConn  int
-	sync.Mutex
-}
-
-func newDBHandler(filename, tableName string) *dbHandler {
-	return &dbHandler{
-		filename:  filename,
-		tableName: tableName,
-		db:        nil,
-		openConn:  0,
-	}
-}
-
-func (d *dbHandler) Open() error {
-	d.Lock()
-	defer d.Unlock()
-	if d.openConn == 0 {
-		if !fileExists(d.filename) {
-			return fmt.Errorf("database doesn't exist: %s", d.filename)
-		}
-		db, err := sql.Open("sqlite3", d.filename)
-		d.db = db
-		return err
-	}
-	d.openConn++
-	return nil
-}
-
-func (d *dbHandler) Close() error {
-	d.Lock()
-	defer d.Unlock()
-	if d.openConn >= 1 {
-		d.openConn--
-		if d.openConn == 0 {
-			return d.db.Close()
-		}
-	}
-	return nil
-}
-
-func (d *dbHandler) Rows() (*sql.Rows, error) {
-	if err := d.checkTableExists(d.tableName); err != nil {
-		d.Close()
-		return nil, err
-	}
-	rows, err := d.db.Query(fmt.Sprintf("SELECT * FROM \"%s\"", d.tableName))
-	if err != nil {
-		d.Close()
-	}
-	return rows, err
-}
-
-// checkTableExists returns error if table doesn't exist in database
-func (d *dbHandler) checkTableExists(tableName string) error {
-	var rowTableName string
-	var rows *sql.Rows
-	var err error
-	tableNames := make([]string, 0)
-
-	rows, err = d.db.Query("select name from sqlite_master where type='table'")
-	if err != nil {
-		return err
-	}
-
-	for rows.Next() {
-		if err := rows.Scan(&rowTableName); err != nil {
-			return err
-		}
-		tableNames = append(tableNames, rowTableName)
-	}
-
-	if !inStringsSlice(tableName, tableNames) {
-		return fmt.Errorf("table name doesn't exist: %s", tableName)
-	}
-	return nil
-}
-
-func fileExists(path string) bool {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return fi.Mode().IsRegular()
-}
-
-func inStringsSlice(needle string, haystack []string) bool {
-	for _, v := range haystack {
-		if v == needle {
-			return true
-		}
-	}
-	return false
 }

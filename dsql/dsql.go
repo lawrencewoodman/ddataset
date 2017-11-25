@@ -12,6 +12,7 @@ package dsql
 import (
 	"database/sql"
 	"fmt"
+
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/dlit"
 )
