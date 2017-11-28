@@ -22,6 +22,7 @@ type DCache struct {
 	allCached    bool
 	cachedRows   int
 	mutex        *sync.Mutex
+	isReleased   bool
 }
 
 // DCacheConn represents a connection to a DCache Dataset
@@ -44,11 +45,15 @@ func New(dataset ddataset.Dataset, maxCacheRows int) ddataset.Dataset {
 		allCached:    false,
 		cachedRows:   0,
 		mutex:        &sync.Mutex{},
+		isReleased:   false,
 	}
 }
 
 // Open creates a connection to the Dataset
 func (c *DCache) Open() (ddataset.Conn, error) {
+	if c.isReleased {
+		return nil, ddataset.ErrReleased
+	}
 	if c.allCached {
 		return &DCacheConn{
 			dataset:   c,
@@ -71,7 +76,24 @@ func (c *DCache) Open() (ddataset.Conn, error) {
 
 // Fields returns the field names used by the Dataset
 func (c *DCache) Fields() []string {
+	if c.isReleased {
+		return []string{}
+	}
 	return c.dataset.Fields()
+}
+
+// Release releases any resources associated with the Dataset d,
+// rendering it unusable in the future.
+func (d *DCache) Release() error {
+	if !d.isReleased {
+		d.cache = nil
+		d.cachedRows = 0
+		d.allCached = false
+		d.maxCacheRows = 0
+		d.isReleased = true
+		return nil
+	}
+	return ddataset.ErrReleased
 }
 
 // Next returns whether there is a Record to be Read

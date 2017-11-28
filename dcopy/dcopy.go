@@ -27,8 +27,9 @@ import (
 
 // DCopy represents a copy of a Dataset
 type DCopy struct {
-	dataset ddataset.Dataset
-	tmpDir  string
+	dataset    ddataset.Dataset
+	tmpDir     string
+	isReleased bool
 }
 
 // DCopyConn represents a connection to a DCopy Dataset
@@ -39,7 +40,7 @@ type DCopyConn struct {
 
 // New creates a new DCopy Dataset which will be a copy of the Dataset
 // supplied at the time it is run.
-func New(dataset ddataset.Dataset) (*DCopy, error) {
+func New(dataset ddataset.Dataset, cacheMB int) (ddataset.Dataset, error) {
 	const numRecordsPerTX = 500
 	if len(dataset.Fields()) < 1 {
 		return nil, fmt.Errorf("Dataset must have at least one field to copy")
@@ -54,6 +55,8 @@ func New(dataset ddataset.Dataset) (*DCopy, error) {
 		os.RemoveAll(tmpDir)
 		return nil, err
 	}
+
+	// Speed-up inserts
 	sqlPragmaStmt := "PRAGMA SYNCHRONOUS = OFF;\n" +
 		"PRAGMA JOURNAL_MODE = OFF;"
 	if _, err := copyDB.Exec(sqlPragmaStmt); err != nil {
@@ -123,16 +126,20 @@ func New(dataset ddataset.Dataset) (*DCopy, error) {
 
 	return &DCopy{
 		dataset: dsql.New(
-			internal.NewSqlite3Handler(copyDBFilename, "dataset", ""),
+			internal.NewSqlite3Handler(copyDBFilename, "dataset", cacheMB),
 			dataset.Fields(),
 		),
-		tmpDir: tmpDir,
+		tmpDir:     tmpDir,
+		isReleased: false,
 	}, nil
 }
 
 // Open creates a connection to the Dataset
-func (c *DCopy) Open() (ddataset.Conn, error) {
-	conn, err := c.dataset.Open()
+func (d *DCopy) Open() (ddataset.Conn, error) {
+	if d.isReleased {
+		return nil, ddataset.ErrReleased
+	}
+	conn, err := d.dataset.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -143,33 +150,45 @@ func (c *DCopy) Open() (ddataset.Conn, error) {
 }
 
 // Fields returns the field names used by the Dataset
-func (c *DCopy) Fields() []string {
-	return c.dataset.Fields()
+func (d *DCopy) Fields() []string {
+	if d.isReleased {
+		return []string{}
+	}
+	return d.dataset.Fields()
 }
 
-// Delete deletes the copy of the database
-func (c *DCopy) Delete() {
-	os.RemoveAll(c.tmpDir)
+// Release releases any resources associated with the Dataset d,
+// rendering it unusable in the future.  In this case it deletes
+// the temporary copy of the Dataset.
+func (d *DCopy) Release() error {
+	if !d.isReleased {
+		if err := d.dataset.Release(); err != nil {
+			fmt.Printf("can't release underlying Dataset: %s", err)
+		}
+		d.isReleased = true
+		return os.RemoveAll(d.tmpDir)
+	}
+	return ddataset.ErrReleased
 }
 
 // Next returns whether there is a Record to be Read
-func (cc *DCopyConn) Next() bool {
-	return cc.conn.Next()
+func (c *DCopyConn) Next() bool {
+	return c.conn.Next()
 }
 
 // Err returns any errors from the connection
-func (cc *DCopyConn) Err() error {
-	return cc.conn.Err()
+func (c *DCopyConn) Err() error {
+	return c.conn.Err()
 }
 
 // Read returns the current Record
-func (cc *DCopyConn) Read() ddataset.Record {
-	return cc.conn.Read()
+func (c *DCopyConn) Read() ddataset.Record {
+	return c.conn.Read()
 }
 
 // Close closes the connection and deletes the copy
-func (cc *DCopyConn) Close() error {
-	return cc.conn.Close()
+func (c *DCopyConn) Close() error {
+	return c.conn.Close()
 }
 
 func getRecords(conn ddataset.Conn, num int) ([]ddataset.Record, error) {

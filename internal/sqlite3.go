@@ -15,6 +15,7 @@ import (
 type sqlite3Handler struct {
 	filename  string
 	tableName string
+	cacheMB   int
 	db        *sql.DB
 	query     string
 	openConn  int
@@ -24,17 +25,18 @@ type sqlite3Handler struct {
 func NewSqlite3Handler(
 	filename,
 	tableName string,
-	query string,
+	cacheMB int,
 ) *sqlite3Handler {
-	if query == "" {
-		query = fmt.Sprintf("SELECT * FROM \"%s\"", tableName)
+
+	if cacheMB < 0 {
+		cacheMB = 0
 	}
 
 	return &sqlite3Handler{
 		filename:  filename,
 		tableName: tableName,
+		cacheMB:   cacheMB,
 		db:        nil,
-		query:     query,
 		openConn:  0,
 	}
 }
@@ -42,13 +44,22 @@ func NewSqlite3Handler(
 func (d *sqlite3Handler) Open() error {
 	d.Lock()
 	defer d.Unlock()
-	if d.openConn == 0 {
+	d.openConn++
+	if d.openConn == 1 {
 		if !fileExists(d.filename) {
 			return fmt.Errorf("database doesn't exist: %s", d.filename)
 		}
 		db, err := sql.Open("sqlite3", d.filename)
 		d.db = db
-		return err
+		if err != nil {
+			return err
+		}
+
+		sqlPragmaStmt := fmt.Sprintf("PRAGMA CACHE_SIZE = -%d000;", d.cacheMB)
+		if _, err := db.Exec(sqlPragmaStmt); err != nil {
+			return err
+		}
+		return nil
 	}
 	d.openConn++
 	return nil
@@ -71,7 +82,7 @@ func (d *sqlite3Handler) Rows() (*sql.Rows, error) {
 		d.Close()
 		return nil, err
 	}
-	rows, err := d.db.Query(d.query)
+	rows, err := d.db.Query(fmt.Sprintf("SELECT * FROM \"%s\"", d.tableName))
 	if err != nil {
 		d.Close()
 	}

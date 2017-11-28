@@ -34,11 +34,11 @@ func TestNew(t *testing.T) {
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, 64)
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Delete()
+		defer cds.Release()
 
 		for i := 0; i < 10; i++ {
 			if err := testhelpers.CheckDatasetsEqual(ds, cds); err != nil {
@@ -79,7 +79,7 @@ func TestNew_errors(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, false, c.separator, c.fieldNames)
-		if _, err := New(ds); err == nil || err.Error() != c.wantErr.Error() {
+		if _, err := New(ds, 64); err == nil || err.Error() != c.wantErr.Error() {
 			t.Fatalf("New: err: %s, want: %s", err, c.wantErr)
 		}
 	}
@@ -103,11 +103,11 @@ func TestOpen(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, 64)
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Delete()
+		defer cds.Release()
 		dsConn, err := ds.Open()
 		if err != nil {
 			t.Fatalf("ds.Open() err: %s", err)
@@ -143,11 +143,11 @@ func TestOpen_multiple_conns(t *testing.T) {
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, 64)
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Delete()
+		defer cds.Release()
 		cdsConns := make([]ddataset.Conn, numConns)
 		for i := range cdsConns {
 			cdsConns[i], err = cds.Open()
@@ -168,6 +168,23 @@ func TestOpen_multiple_conns(t *testing.T) {
 	}
 }
 
+func TestOpen_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	separator := ';'
+	fieldNames := []string{"age", "job", "marital", "education", "default",
+		"balance", "housing", "loan", "contact", "day", "month", "duration",
+		"campaign", "pdays", "previous", "poutcome", "y"}
+	ds := dcsv.New(filename, true, separator, fieldNames)
+	cds, err := New(ds, 64)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
+	cds.Release()
+	if _, err := cds.Open(); err != ddataset.ErrReleased {
+		t.Fatalf("cds.Open() err: %s", err)
+	}
+}
+
 func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	fieldNames := []string{
@@ -175,16 +192,37 @@ func TestFields(t *testing.T) {
 		"housing", "loan", "contact", "day", "month", "duration", "campaign",
 		"pdays", "previous", "poutcome", "y",
 	}
-	ds := dcsv.New(filename, false, ';', fieldNames)
-	rds, err := New(ds)
+	ds := dcsv.New(filename, true, ';', fieldNames)
+	rds, err := New(ds, 64)
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer rds.Delete()
+	defer rds.Release()
 
 	got := rds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
 		t.Errorf("Fields() - got: %s, want: %s", got, fieldNames)
+	}
+}
+
+func TestRelease_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	fieldNames := []string{
+		"age", "job", "marital", "education", "default", "balance",
+		"housing", "loan", "contact", "day", "month", "duration", "campaign",
+		"pdays", "previous", "poutcome", "y",
+	}
+	ds := dcsv.New(filename, true, ';', fieldNames)
+	rds, err := New(ds, 64)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
+	if err := rds.Release(); err != nil {
+		t.Errorf("Release: %s", err)
+	}
+
+	if err := rds.Release(); err != ddataset.ErrReleased {
+		t.Errorf("Release - got: %s, want: %s", err, ddataset.ErrReleased)
 	}
 }
 
@@ -203,11 +241,11 @@ func TestNext(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, 64)
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Delete()
+		defer cds.Release()
 		conn, err := cds.Open()
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
@@ -238,11 +276,11 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 		"success",
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
-	cds, err := New(ds)
+	cds, err := New(ds, 64)
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer cds.Delete()
+	defer cds.Release()
 	numSums := 10
 	sumBalances := make([]int64, numSums)
 
@@ -277,11 +315,11 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	} else {
 		numGoroutines = 500
 	}
-	cds, err := New(ds)
+	cds, err := New(ds, 64)
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer cds.Delete()
+	defer cds.Release()
 
 	sumBalances := make(chan int64, numGoroutines)
 	wg := sync.WaitGroup{}
@@ -313,6 +351,26 @@ func TestOpenNextRead_goroutines(t *testing.T) {
  *  Benchmarks
  *************************/
 
+func BenchmarkNew(b *testing.B) {
+	filename := filepath.Join("fixtures", "debt.csv")
+	hasHeader := true
+	fieldNames := []string{
+		"name",
+		"balance",
+		"numCards",
+		"martialStatus",
+		"tertiaryEducated",
+		"success",
+	}
+	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
+
+	cds, err := New(ds, 64)
+	if err != nil {
+		b.Fatalf("New: %s", err)
+	}
+	defer cds.Release()
+}
+
 func BenchmarkOpenNextRead(b *testing.B) {
 	filename := filepath.Join("fixtures", "debt.csv")
 	hasHeader := true
@@ -326,11 +384,11 @@ func BenchmarkOpenNextRead(b *testing.B) {
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
 
-	cds, err := New(ds)
+	cds, err := New(ds, 64)
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
-	defer cds.Delete()
+	defer cds.Release()
 	sumBalances := make([]int64, b.N)
 
 	b.ResetTimer()
@@ -360,11 +418,11 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 		"success",
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
-	cds, err := New(ds)
+	cds, err := New(ds, 64)
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
-	defer cds.Delete()
+	defer cds.Release()
 	sumBalances := make(chan int64, b.N)
 	wg := sync.WaitGroup{}
 	wg.Add(b.N)
@@ -407,11 +465,11 @@ func BenchmarkNext(b *testing.B) {
 	}
 	ds := dcsv.New(filename, hasHeader, separator, fieldNames)
 
-	cds, err := New(ds)
+	cds, err := New(ds, 64)
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
-	defer cds.Delete()
+	defer cds.Release()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()

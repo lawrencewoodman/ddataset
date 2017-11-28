@@ -64,6 +64,25 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestRelease_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	fieldNames := []string{
+		"age", "job", "marital", "education", "default", "balance",
+		"housing", "loan", "contact", "day", "month", "duration", "campaign",
+		"pdays", "previous", "poutcome", "y",
+	}
+	maxCacheRows := 100
+	ds := dcsv.New(filename, true, ';', fieldNames)
+	rds := New(ds, maxCacheRows)
+	if err := rds.Release(); err != nil {
+		t.Errorf("Release: %s", err)
+	}
+
+	if err := rds.Release(); err != ddataset.ErrReleased {
+		t.Errorf("Release - got: %s, want: %s", err, ddataset.ErrReleased)
+	}
+}
+
 func TestOpen(t *testing.T) {
 	cases := []struct {
 		filename     string
@@ -180,7 +199,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 	}
 }
 
-func TestOpen_errors(t *testing.T) {
+func TestOpen_error_missing_csv(t *testing.T) {
 	filename := "missing.csv"
 	fieldNames := []string{"age", "occupation"}
 	maxCacheRows := 100
@@ -191,6 +210,21 @@ func TestOpen_errors(t *testing.T) {
 	if err := testhelpers.CheckPathErrorMatch(err, wantErr); err != nil {
 		t.Errorf("Open() - filename: %s - problem with error: %s",
 			filename, err)
+	}
+}
+
+func TestOpen_error_released(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	separator := ';'
+	fieldNames := []string{"age", "job", "marital", "education", "default",
+		"balance", "housing", "loan", "contact", "day", "month", "duration",
+		"campaign", "pdays", "previous", "poutcome", "y"}
+	maxCacheRows := 100
+	ds := dcsv.New(filename, true, separator, fieldNames)
+	cds := New(ds, maxCacheRows)
+	cds.Release()
+	if _, err := cds.Open(); err != ddataset.ErrReleased {
+		t.Fatalf("cds.Open() err: %s", err)
 	}
 }
 

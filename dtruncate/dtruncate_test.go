@@ -66,6 +66,40 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestOpen_error_released(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	separator := ';'
+	fieldNames := []string{"age", "job", "marital", "education", "default",
+		"balance", "housing", "loan", "contact", "day", "month", "duration",
+		"campaign", "pdays", "previous", "poutcome", "y"}
+	numRecords := 3
+	ds := dcsv.New(filename, true, separator, fieldNames)
+	rds := New(ds, numRecords)
+	rds.Release()
+	if _, err := rds.Open(); err != ddataset.ErrReleased {
+		t.Fatalf("rds.Open() err: %s", err)
+	}
+}
+
+func TestRelease_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	fieldNames := []string{
+		"age", "job", "marital", "education", "default", "balance",
+		"housing", "loan", "contact", "day", "month", "duration", "campaign",
+		"pdays", "previous", "poutcome", "y",
+	}
+	numRecords := 3
+	ds := dcsv.New(filename, true, ';', fieldNames)
+	rds := New(ds, numRecords)
+	if err := rds.Release(); err != nil {
+		t.Errorf("Release: %s", err)
+	}
+
+	if err := rds.Release(); err != ddataset.ErrReleased {
+		t.Errorf("Release - got: %s, want: %s", err, ddataset.ErrReleased)
+	}
+}
+
 func TestRead(t *testing.T) {
 	cases := []struct {
 		filename        string

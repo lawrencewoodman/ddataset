@@ -63,6 +63,36 @@ func TestOpen_errors(t *testing.T) {
 	}
 }
 
+func TestOpen_error_released(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	separator := ';'
+	fieldNames := []string{"age", "job", "marital", "education", "default",
+		"balance", "housing", "loan", "contact", "day", "month", "duration",
+		"campaign", "pdays", "previous", "poutcome", "y"}
+	ds := New(filename, true, separator, fieldNames)
+	ds.Release()
+	if _, err := ds.Open(); err != ddataset.ErrReleased {
+		t.Fatalf("ds.Open() err: %s", err)
+	}
+}
+
+func TestRelease_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	fieldNames := []string{
+		"age", "job", "marital", "education", "default", "balance",
+		"housing", "loan", "contact", "day", "month", "duration", "campaign",
+		"pdays", "previous", "poutcome", "y",
+	}
+	ds := New(filename, true, ';', fieldNames)
+	if err := ds.Release(); err != nil {
+		t.Errorf("Release: %s", err)
+	}
+
+	if err := ds.Release(); err != ddataset.ErrReleased {
+		t.Errorf("Release - got: %s, want: %s", err, ddataset.ErrReleased)
+	}
+}
+
 func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	fieldNames := []string{

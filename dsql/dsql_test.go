@@ -24,7 +24,7 @@ func TestNew(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	if _, ok := ds.(*DSQL); !ok {
 		t.Errorf("New(...) want DSQL type, got type: %T", ds)
 	}
@@ -34,7 +34,7 @@ func TestOpen(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	conn, err := ds.Open()
 	if err != nil {
 		t.Errorf("Open() err: %s", err)
@@ -70,7 +70,7 @@ func TestOpen_errors(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := New(
-			internal.NewSqlite3Handler(c.filename, c.tableName, ""),
+			internal.NewSqlite3Handler(c.filename, c.tableName, 64),
 			c.fieldNames,
 		)
 		if _, err := ds.Open(); err.Error() != c.wantErr.Error() {
@@ -80,12 +80,43 @@ func TestOpen_errors(t *testing.T) {
 	}
 }
 
+func TestOpen_error_released(t *testing.T) {
+	filename := filepath.Join("fixtures", "users.db")
+	tableName := "userinfo"
+	fieldNames := []string{"uid", "username", "dept", "started"}
+	ds := New(
+		internal.NewSqlite3Handler(filename, tableName, 64),
+		fieldNames,
+	)
+	ds.Release()
+	if _, err := ds.Open(); err != ddataset.ErrReleased {
+		t.Fatalf("ds.Open() err: %s", err)
+	}
+}
+
+func TestRelease_error(t *testing.T) {
+	filename := filepath.Join("fixtures", "users.db")
+	tableName := "userinfo"
+	fieldNames := []string{"uid", "username", "dept", "started"}
+	ds := New(
+		internal.NewSqlite3Handler(filename, tableName, 64),
+		fieldNames,
+	)
+	if err := ds.Release(); err != nil {
+		t.Errorf("Release: %s", err)
+	}
+
+	if err := ds.Release(); err != ddataset.ErrReleased {
+		t.Errorf("Release - got: %s, want: %s", err, ddataset.ErrReleased)
+	}
+}
+
 func TestFields(t *testing.T) {
 	filename := filepath.Join("fixtures", "users.db")
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
 	ds := New(
-		internal.NewSqlite3Handler(filename, tableName, ""),
+		internal.NewSqlite3Handler(filename, tableName, 64),
 		fieldNames,
 	)
 	got := ds.Fields()
@@ -100,7 +131,7 @@ func TestNext(t *testing.T) {
 	tableName := "userinfo"
 	fieldNames := []string{"uid", "username", "dept", "started"}
 	ds := New(
-		internal.NewSqlite3Handler(filename, tableName, ""),
+		internal.NewSqlite3Handler(filename, tableName, 64),
 		fieldNames,
 	)
 	conn, err := ds.Open()
@@ -162,7 +193,7 @@ func TestRead(t *testing.T) {
 	}
 
 	ds := New(
-		internal.NewSqlite3Handler(filename, tableName, ""),
+		internal.NewSqlite3Handler(filename, tableName, 64),
 		fieldNames,
 	)
 	conn, err := ds.Open()
@@ -199,7 +230,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	if testing.Short() {
 		numGoroutines = 10
 	} else {
@@ -247,7 +278,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	sumBalances := make([]int64, b.N)
 
 	b.ResetTimer()
@@ -277,7 +308,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	sumBalances := make(chan int64, b.N)
 	wg := sync.WaitGroup{}
 	wg.Add(b.N)
@@ -317,7 +348,7 @@ func BenchmarkNext(b *testing.B) {
 		"tertiaryEducated",
 		"success",
 	}
-	ds := New(internal.NewSqlite3Handler(filename, tableName, ""), fieldNames)
+	ds := New(internal.NewSqlite3Handler(filename, tableName, 64), fieldNames)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
