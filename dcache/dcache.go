@@ -11,7 +11,6 @@ package dcache
 
 import (
 	"github.com/lawrencewoodman/ddataset"
-	"sync"
 )
 
 // DCache represents a cached Dataset
@@ -21,7 +20,6 @@ type DCache struct {
 	maxCacheRows int
 	allCached    bool
 	cachedRows   int
-	mutex        *sync.Mutex
 	isReleased   bool
 }
 
@@ -38,15 +36,41 @@ type DCacheConn struct {
 // maxCacheRows is at least as big as the number of rows in the Dataset
 // you want to cache.  However, if it is less the access time is about
 // the same.
-func New(dataset ddataset.Dataset, maxCacheRows int) ddataset.Dataset {
+func New(
+	dataset ddataset.Dataset,
+	maxCacheRows int,
+) (ddataset.Dataset, error) {
+	conn, err := dataset.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	cache := make([]ddataset.Record, maxCacheRows)
+	cachedRows := 0
+	for cachedRows < maxCacheRows && conn.Next() {
+		cache[cachedRows] = conn.Read().Clone()
+		cachedRows++
+	}
+	moreRecords := conn.Next()
+
+	if err := conn.Err(); err != nil {
+		return nil, err
+	}
+
+	allCached := false
+	if cachedRows <= maxCacheRows && !moreRecords {
+		allCached = true
+	}
+
 	return &DCache{
 		dataset:      dataset,
+		cache:        cache,
+		cachedRows:   cachedRows,
 		maxCacheRows: maxCacheRows,
-		allCached:    false,
-		cachedRows:   0,
-		mutex:        &sync.Mutex{},
+		allCached:    allCached,
 		isReleased:   false,
-	}
+	}, nil
 }
 
 // Open creates a connection to the Dataset
@@ -87,7 +111,6 @@ func (c *DCache) Fields() []string {
 func (d *DCache) Release() error {
 	if !d.isReleased {
 		d.cache = nil
-		d.cachedRows = 0
 		d.allCached = false
 		d.maxCacheRows = 0
 		d.isReleased = true
@@ -99,7 +122,7 @@ func (d *DCache) Release() error {
 // Next returns whether there is a Record to be Read
 func (cc *DCacheConn) Next() bool {
 	if cc.dataset.allCached {
-		if cc.recordNum < (cc.dataset.cachedRows - 1) {
+		if (cc.recordNum + 1) < cc.dataset.cachedRows {
 			cc.recordNum++
 			return true
 		}
@@ -112,9 +135,6 @@ func (cc *DCacheConn) Next() bool {
 	isRecord := cc.conn.Next()
 	if isRecord {
 		cc.recordNum++
-	} else if cc.dataset.cachedRows-1 == cc.recordNum && cc.conn.Err() == nil {
-		cc.dataset.allCached = true
-		cc.conn.Close()
 	}
 
 	return isRecord
@@ -130,23 +150,11 @@ func (cc *DCacheConn) Err() error {
 
 // Read returns the current Record
 func (cc *DCacheConn) Read() ddataset.Record {
-	cc.dataset.mutex.Lock()
-	defer cc.dataset.mutex.Unlock()
 	if cc.recordNum < cc.dataset.cachedRows {
 		return cc.dataset.cache[cc.recordNum]
 	}
 
-	if cc.dataset.cache == nil {
-		cc.dataset.cache = make([]ddataset.Record, cc.dataset.maxCacheRows)
-	}
-
-	record := cc.conn.Read()
-	if cc.recordNum < cc.dataset.maxCacheRows {
-		cc.dataset.cache[cc.recordNum] = record.Clone()
-		cc.dataset.cachedRows = cc.recordNum + 1
-	}
-
-	return record
+	return cc.conn.Read()
 }
 
 // Close closes the connection

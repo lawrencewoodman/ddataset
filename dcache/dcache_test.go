@@ -54,12 +54,58 @@ func TestNew(t *testing.T) {
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds := New(ds, c.maxCacheRows)
+		cds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
 
 		for i := 0; i < 10; i++ {
 			if err := testhelpers.CheckDatasetsEqual(ds, cds); err != nil {
 				t.Fatalf("checkDatasetsEqual err: %s", err)
 			}
+		}
+	}
+}
+
+func TestNew_errors(t *testing.T) {
+	cases := []struct {
+		filename     string
+		separator    rune
+		fieldNames   []string
+		maxCacheRows int
+		wantErr      error
+	}{
+		{filename: filepath.Join("fixtures", "invalid_numfields_at_102.csv"),
+			separator:    ',',
+			fieldNames:   []string{"band", "score", "team", "points", "rating"},
+			maxCacheRows: 105,
+			wantErr: &csv.ParseError{
+				102,
+				0,
+				errors.New("wrong number of fields in line"),
+			}},
+		{filename: "missing.csv",
+			separator:    ',',
+			fieldNames:   []string{"age", "occupation"},
+			maxCacheRows: 100,
+			wantErr:      &os.PathError{"open", "missing.csv", syscall.ENOENT},
+		},
+
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			separator: ';',
+			fieldNames: []string{"age", "job", "marital", "education", "default",
+				"balance", "housing", "loan", "contact", "day", "month", "duration",
+				"campaign", "pdays", "previous", "poutcome"},
+			maxCacheRows: 4,
+			wantErr:      errors.New("wrong number of field names for dataset"),
+		},
+	}
+
+	for _, c := range cases {
+		ds := dcsv.New(c.filename, false, c.separator, c.fieldNames)
+		_, err := New(ds, c.maxCacheRows)
+		if err == nil || err.Error() != c.wantErr.Error() {
+			t.Errorf("New - filename: %s, got: %s, want: %s", c.filename, err, c.wantErr)
 		}
 	}
 }
@@ -73,7 +119,10 @@ func TestRelease_error(t *testing.T) {
 	}
 	maxCacheRows := 100
 	ds := dcsv.New(filename, true, ';', fieldNames)
-	rds := New(ds, maxCacheRows)
+	rds, err := New(ds, maxCacheRows)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
 	if err := rds.Release(); err != nil {
 		t.Errorf("Release: %s", err)
 	}
@@ -119,9 +168,12 @@ func TestOpen(t *testing.T) {
 				"tertiaryEducated", "success"},
 			1000},
 	}
-	for _, c := range cases {
+	for i, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds := New(ds, c.maxCacheRows)
+		cds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
 		dsConn, err := ds.Open()
 		if err != nil {
 			t.Fatalf("ds.Open() err: %s", err)
@@ -132,7 +184,7 @@ func TestOpen(t *testing.T) {
 		}
 
 		if err := testhelpers.CheckDatasetConnsEqual(dsConn, cdsConn); err != nil {
-			t.Errorf("checkDatasetConnsEqual err: %s", err)
+			t.Errorf("(%d) checkDatasetConnsEqual err: %s", i, err)
 		}
 	}
 }
@@ -172,13 +224,19 @@ func TestOpen_multiple_conns(t *testing.T) {
 			[]string{"name", "balance", "numCards", "martialStatus",
 				"tertiaryEducated", "success"},
 			1000},
+		{filepath.Join("fixtures", "debt.csv"), ',',
+			[]string{"name", "balance", "numCards", "martialStatus",
+				"tertiaryEducated", "success"},
+			10000},
 	}
-	var err error
 	const numConns = 10
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds := New(ds, c.maxCacheRows)
+		cds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
 		cdsConns := make([]ddataset.Conn, numConns)
 		for i := range cdsConns {
 			cdsConns[i], err = cds.Open()
@@ -199,20 +257,6 @@ func TestOpen_multiple_conns(t *testing.T) {
 	}
 }
 
-func TestOpen_error_missing_csv(t *testing.T) {
-	filename := "missing.csv"
-	fieldNames := []string{"age", "occupation"}
-	maxCacheRows := 100
-	wantErr := &os.PathError{"open", "missing.csv", syscall.ENOENT}
-	ds := dcsv.New(filename, false, ';', fieldNames)
-	rds := New(ds, maxCacheRows)
-	_, err := rds.Open()
-	if err := testhelpers.CheckPathErrorMatch(err, wantErr); err != nil {
-		t.Errorf("Open() - filename: %s - problem with error: %s",
-			filename, err)
-	}
-}
-
 func TestOpen_error_released(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	separator := ';'
@@ -221,7 +265,10 @@ func TestOpen_error_released(t *testing.T) {
 		"campaign", "pdays", "previous", "poutcome", "y"}
 	maxCacheRows := 100
 	ds := dcsv.New(filename, true, separator, fieldNames)
-	cds := New(ds, maxCacheRows)
+	cds, err := New(ds, maxCacheRows)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
 	cds.Release()
 	if _, err := cds.Open(); err != ddataset.ErrReleased {
 		t.Fatalf("cds.Open() err: %s", err)
@@ -237,7 +284,10 @@ func TestFields(t *testing.T) {
 	}
 	maxCacheRows := 100
 	ds := dcsv.New(filename, false, ';', fieldNames)
-	rds := New(ds, maxCacheRows)
+	rds, err := New(ds, maxCacheRows)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
 
 	got := rds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
@@ -255,23 +305,20 @@ func TestErr(t *testing.T) {
 	}{
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
 			[]string{"band", "score", "team", "points", "rating"},
-			105,
+			100,
 			&csv.ParseError{102, 0, errors.New("wrong number of fields in line")}},
-		{filepath.Join("fixtures", "bank.csv"), ';',
-			[]string{"age", "job", "marital", "education", "default", "balance",
-				"housing", "loan", "contact", "day", "month", "duration", "campaign",
-				"pdays", "previous", "poutcome"},
-			4,
-			errors.New("wrong number of field names for dataset")},
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
 				"housing", "loan", "contact", "day", "month", "duration", "campaign",
 				"pdays", "previous", "poutcome", "y"},
 			20, nil},
 	}
-	for _, c := range cases {
+	for i, c := range cases {
 		ds := dcsv.New(c.filename, false, c.separator, c.fieldNames)
-		rds := New(ds, c.maxCacheRows)
+		rds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("(%d) New: %s", i, err)
+		}
 		conn, err := rds.Open()
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
@@ -321,7 +368,10 @@ func TestNext(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
-		cds := New(ds, c.maxCacheRows)
+		cds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
 		conn, err := cds.Open()
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
@@ -353,7 +403,10 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 	}
 	cacheRecords := 100
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
-	cds := New(ds, cacheRecords)
+	cds, err := New(ds, cacheRecords)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
 	numSums := 10
 	sumBalances := make([]int64, numSums)
 
@@ -394,18 +447,20 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 		numGoroutines = 500
 	}
 	for _, c := range cases {
-		cds := New(ds, c.cacheRecords)
+		cds, err := New(ds, c.cacheRecords)
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
 		sumBalances := make(chan int64, numGoroutines)
 		wg := sync.WaitGroup{}
 		wg.Add(numGoroutines)
 
-		sumBalanceGR := func(ds ddataset.Dataset, sum chan int64) {
-			defer wg.Done()
-			sum <- testhelpers.SumBalance(ds)
-		}
-
 		for i := 0; i < numGoroutines; i++ {
-			go sumBalanceGR(cds, sumBalances)
+			go func() {
+				defer wg.Done()
+				sumBalances <- testhelpers.SumBalance(cds)
+			}()
+
 		}
 
 		go func() {
@@ -414,12 +469,14 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 		}()
 
 		sumBalance := <-sumBalances
+		i := 0
 		for sum := range sumBalances {
 			if sumBalance != sum {
 				t.Errorf("sumBalances are not all equal for cacheRecords: %d",
 					c.cacheRecords)
 				return
 			}
+			i++
 		}
 	}
 }
@@ -448,7 +505,10 @@ func BenchmarkOpenNextRead(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(fmt.Sprintf("cacherecords-%d", bm.cacheRecords), func(b *testing.B) {
-			cds := New(ds, bm.cacheRecords)
+			cds, err := New(ds, bm.cacheRecords)
+			if err != nil {
+				b.Fatalf("New: %s", err)
+			}
 			sumBalances := make([]int64, b.N)
 
 			b.ResetTimer()
@@ -487,7 +547,10 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
 	for _, bm := range benchmarks {
 		b.Run(fmt.Sprintf("cacherecords-%d", bm.cacheRecords), func(b *testing.B) {
-			cds := New(ds, bm.cacheRecords)
+			cds, err := New(ds, bm.cacheRecords)
+			if err != nil {
+				b.Fatalf("New: %s", err)
+			}
 			sumBalances := make(chan int64, b.N)
 			wg := sync.WaitGroup{}
 			wg.Add(b.N)
@@ -539,7 +602,10 @@ func BenchmarkNext(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(fmt.Sprintf("cacherecords-%d", bm.cacheRecords), func(b *testing.B) {
-			cds := New(ds, bm.cacheRecords)
+			cds, err := New(ds, bm.cacheRecords)
+			if err != nil {
+				b.Fatalf("New: %s", err)
+			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
