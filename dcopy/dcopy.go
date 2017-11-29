@@ -13,16 +13,14 @@
 package dcopy
 
 import (
-	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/lawrencewoodman/ddataset"
-	"github.com/lawrencewoodman/ddataset/dsql"
-	"github.com/lawrencewoodman/ddataset/internal"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/lawrencewoodman/ddataset/dcsv"
 )
 
 // DCopy represents a copy of a Dataset
@@ -39,43 +37,20 @@ type DCopyConn struct {
 }
 
 // New creates a new DCopy Dataset which will be a copy of the Dataset
-// supplied at the time it is run.
-func New(dataset ddataset.Dataset, cacheMB int) (ddataset.Dataset, error) {
-	const numRecordsPerTX = 500
-	if len(dataset.Fields()) < 1 {
-		return nil, fmt.Errorf("Dataset must have at least one field to copy")
-	}
+// supplied at the time it is run. Please note that this creates a file
+// on the disk containing a copy of the supplied Dataset.
+func New(dataset ddataset.Dataset) (ddataset.Dataset, error) {
 	tmpDir, err := ioutil.TempDir("", "dcopy")
 	if err != nil {
 		return nil, err
 	}
-	copyDBFilename := filepath.Join(tmpDir, "copy.db")
-	copyDB, err := sql.Open("sqlite3", copyDBFilename)
+	copyFilename := filepath.Join(tmpDir, "copy.csv")
+	f, err := os.Create(copyFilename)
 	if err != nil {
-		os.RemoveAll(tmpDir)
 		return nil, err
 	}
-
-	// Speed-up inserts
-	sqlPragmaStmt := "PRAGMA SYNCHRONOUS = OFF;\n" +
-		"PRAGMA JOURNAL_MODE = OFF;"
-	if _, err := copyDB.Exec(sqlPragmaStmt); err != nil {
-		return nil, err
-	}
-
-	// field names are quoted to prevent clashes with sqlite keywords
-	sqlCreateStmt :=
-		fmt.Sprintf("CREATE TABLE dataset ('%s' TEXT", dataset.Fields()[0])
-
-	// TODO: Restrict field names to names that are valid in sqlite3 statement
-	for _, fieldName := range dataset.Fields()[1:] {
-		sqlCreateStmt += fmt.Sprintf(", '%s' TEXT", fieldName)
-	}
-	sqlCreateStmt += ");"
-	if _, err = copyDB.Exec(sqlCreateStmt); err != nil {
-		os.RemoveAll(tmpDir)
-		return nil, err
-	}
+	defer f.Close()
+	w := csv.NewWriter(f)
 
 	conn, err := dataset.Open()
 	if err != nil {
@@ -84,51 +59,31 @@ func New(dataset ddataset.Dataset, cacheMB int) (ddataset.Dataset, error) {
 	}
 	defer conn.Close()
 
-	for {
-		records, err := getRecords(conn, numRecordsPerTX)
-		if err != nil {
+	strRecord := make([]string, len(dataset.Fields()))
+	for conn.Next() {
+		record := conn.Read()
+		for i, f := range dataset.Fields() {
+			strRecord[i] = record[f].String()
+		}
+		if err := w.Write(strRecord); err != nil {
 			os.RemoveAll(tmpDir)
-			return nil, err
-		}
-		if len(records) == 0 {
-			break
-		}
-		tx, err := copyDB.Begin()
-		if err != nil {
-			return nil, err
-		}
-
-		sqlInsertStmt := "INSERT INTO dataset VALUES(?"
-		for i := 0; i < len(dataset.Fields())-1; i++ {
-			sqlInsertStmt += ", ?"
-		}
-		sqlInsertStmt += ")"
-
-		stmt, err := tx.Prepare(sqlInsertStmt)
-		if err != nil {
-			return nil, err
-		}
-		defer stmt.Close()
-
-		for _, record := range records {
-			sqlValues := make([]interface{}, len(dataset.Fields()))
-			for i, f := range dataset.Fields() {
-				sqlValues[i] = record[f].String()
-			}
-			if _, err := stmt.Exec(sqlValues...); err != nil {
-				return nil, err
-			}
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error writing record to csv copy: %s", err)
 		}
 	}
 
+	if err := conn.Err(); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, err
+	}
+
+	w.Flush()
+	if err := w.Error(); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, err
+	}
+
 	return &DCopy{
-		dataset: dsql.New(
-			internal.NewSqlite3Handler(copyDBFilename, "dataset", cacheMB),
-			dataset.Fields(),
-		),
+		dataset:    dcsv.New(copyFilename, false, ',', dataset.Fields()),
 		tmpDir:     tmpDir,
 		isReleased: false,
 	}, nil
