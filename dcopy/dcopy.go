@@ -38,9 +38,11 @@ type DCopyConn struct {
 
 // New creates a new DCopy Dataset which will be a copy of the Dataset
 // supplied at the time it is run. Please note that this creates a file
-// on the disk containing a copy of the supplied Dataset.
-func New(dataset ddataset.Dataset) (ddataset.Dataset, error) {
-	tmpDir, err := ioutil.TempDir("", "dcopy")
+// on the disk containing a copy of the supplied Dataset.  The copy is
+// created in a sub-directory of tmpDir.  If tmpDir is the empty string,
+// then it uses the default system temporary directory.
+func New(dataset ddataset.Dataset, tmpDir string) (ddataset.Dataset, error) {
+	tmpDir, err := ioutil.TempDir(tmpDir, "dcopy")
 	if err != nil {
 		return nil, err
 	}

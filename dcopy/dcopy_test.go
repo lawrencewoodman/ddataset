@@ -3,9 +3,11 @@ package dcopy
 import (
 	"encoding/csv"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -34,7 +36,7 @@ func TestNew(t *testing.T) {
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, "")
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
@@ -46,6 +48,43 @@ func TestNew(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestNew_tmpdir_specified(t *testing.T) {
+	filename := filepath.Join("fixtures", "bank.csv")
+	separator := ';'
+	fields := []string{"age", "job", "marital", "education", "default", "balance",
+		"housing", "loan", "contact", "day", "month", "duration", "campaign",
+		"pdays", "previous", "poutcome", "y"}
+
+	tmpDir, err := ioutil.TempDir("", "TestNew_tmpdirs")
+	if err != nil {
+		t.Fatalf("TempDir: %s", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ds := dcsv.New(filename, true, separator, fields)
+	cds, err := New(ds, tmpDir)
+	if err != nil {
+		t.Fatalf("New: %s", err)
+	}
+	defer cds.Release()
+	files, err := ioutil.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadDir: %s", err)
+	}
+	if len(files) == 1 &&
+		files[0].IsDir() &&
+		strings.HasPrefix(files[0].Name(), "dcopy") {
+		dcopyFiles, err := ioutil.ReadDir(filepath.Join(tmpDir, files[0].Name()))
+		if err != nil {
+			t.Fatalf("ReadDir: %s", err)
+		}
+		if len(dcopyFiles) == 1 && dcopyFiles[0].Name() == "copy.csv" {
+			return
+		}
+	}
+	t.Errorf("New - can't find \"copy.csv\" in \"%s\"", tmpDir)
 }
 
 func TestNew_errors(t *testing.T) {
@@ -79,7 +118,7 @@ func TestNew_errors(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, false, c.separator, c.fieldNames)
-		if _, err := New(ds); err == nil || err.Error() != c.wantErr.Error() {
+		if _, err := New(ds, ""); err == nil || err.Error() != c.wantErr.Error() {
 			t.Fatalf("New: err: %s, want: %s", err, c.wantErr)
 		}
 	}
@@ -103,7 +142,7 @@ func TestOpen(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, "")
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
@@ -143,7 +182,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, true, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, "")
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
@@ -175,7 +214,7 @@ func TestOpen_error(t *testing.T) {
 		"balance", "housing", "loan", "contact", "day", "month", "duration",
 		"campaign", "pdays", "previous", "poutcome", "y"}
 	ds := dcsv.New(filename, true, separator, fieldNames)
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
@@ -193,7 +232,7 @@ func TestFields(t *testing.T) {
 		"pdays", "previous", "poutcome", "y",
 	}
 	ds := dcsv.New(filename, true, ';', fieldNames)
-	rds, err := New(ds)
+	rds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
@@ -213,7 +252,7 @@ func TestRelease_error(t *testing.T) {
 		"pdays", "previous", "poutcome", "y",
 	}
 	ds := dcsv.New(filename, true, ';', fieldNames)
-	rds, err := New(ds)
+	rds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
@@ -241,7 +280,7 @@ func TestNext(t *testing.T) {
 	}
 	for _, c := range cases {
 		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
-		cds, err := New(ds)
+		cds, err := New(ds, "")
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
@@ -276,7 +315,7 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 		"success",
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
@@ -315,7 +354,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	} else {
 		numGoroutines = 500
 	}
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
@@ -364,7 +403,7 @@ func BenchmarkNew(b *testing.B) {
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
 
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
@@ -384,7 +423,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
 
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
@@ -418,7 +457,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 		"success",
 	}
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
@@ -465,7 +504,7 @@ func BenchmarkNext(b *testing.B) {
 	}
 	ds := dcsv.New(filename, hasHeader, separator, fieldNames)
 
-	cds, err := New(ds)
+	cds, err := New(ds, "")
 	if err != nil {
 		b.Fatalf("New: %s", err)
 	}
