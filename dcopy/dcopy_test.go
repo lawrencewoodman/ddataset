@@ -381,7 +381,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	sumBalance := <-sumBalances
 	for sum := range sumBalances {
 		if sumBalance != sum {
-			t.Errorf("sumBalances are not all equal (%d != %d)", sumBalance != sum)
+			t.Errorf("sumBalances are not all equal (%d != %d)", sumBalance, sum)
 		}
 	}
 }
