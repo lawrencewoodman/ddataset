@@ -200,7 +200,11 @@ func TestErr(t *testing.T) {
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
 			[]string{"band", "score", "team", "points", "rating"},
 			105,
-			&csv.ParseError{102, 0, errors.New("wrong number of fields in line")}},
+			&csv.ParseError{
+				Line:   102,
+				Column: 0,
+				Err:    errors.New("wrong number of fields in line"),
+			}},
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
 				"housing", "loan", "contact", "day", "month", "duration", "campaign",

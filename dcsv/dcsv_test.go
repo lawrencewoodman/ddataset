@@ -204,7 +204,11 @@ func TestErr(t *testing.T) {
 	}{
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
 			[]string{"band", "score", "team", "points", "rating"},
-			&csv.ParseError{102, 0, errors.New("wrong number of fields in line")}},
+			&csv.ParseError{
+				Line:   102,
+				Column: 0,
+				Err:    errors.New("wrong number of fields in line"),
+			}},
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
 				"housing", "loan", "contact", "day", "month", "duration", "campaign",
@@ -295,7 +299,11 @@ func TestNext_errors(t *testing.T) {
 			ddataset.ErrWrongNumFields},
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
 			[]string{"band", "score", "team", "points", "rating"}, 101,
-			&csv.ParseError{102, 0, errors.New("wrong number of fields in line")}},
+			&csv.ParseError{
+				Line:   102,
+				Column: 0,
+				Err:    errors.New("wrong number of fields in line"),
+			}},
 	}
 	for _, c := range cases {
 		ds := New(c.filename, false, c.separator, c.fieldNames)

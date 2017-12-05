@@ -98,9 +98,9 @@ func TestNew_errors(t *testing.T) {
 			separator:  ',',
 			fieldNames: []string{"band", "score", "team", "points", "rating"},
 			wantErr: &csv.ParseError{
-				102,
-				0,
-				errors.New("wrong number of fields in line"),
+				Line:   102,
+				Column: 0,
+				Err:    errors.New("wrong number of fields in line"),
 			},
 		},
 		{filename: "missing.csv",
