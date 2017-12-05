@@ -203,7 +203,7 @@ func TestErr(t *testing.T) {
 			&csv.ParseError{
 				Line:   102,
 				Column: 0,
-				Err:    errors.New("wrong number of fields in line"),
+				Err:    csv.ErrFieldCount,
 			}},
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",

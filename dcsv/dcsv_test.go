@@ -2,7 +2,6 @@ package dcsv
 
 import (
 	"encoding/csv"
-	"errors"
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/ddataset/internal/testhelpers"
 	"github.com/lawrencewoodman/dlit"
@@ -207,7 +206,7 @@ func TestErr(t *testing.T) {
 			&csv.ParseError{
 				Line:   102,
 				Column: 0,
-				Err:    errors.New("wrong number of fields in line"),
+				Err:    csv.ErrFieldCount,
 			}},
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -302,7 +301,7 @@ func TestNext_errors(t *testing.T) {
 			&csv.ParseError{
 				Line:   102,
 				Column: 0,
-				Err:    errors.New("wrong number of fields in line"),
+				Err:    csv.ErrFieldCount,
 			}},
 	}
 	for _, c := range cases {
