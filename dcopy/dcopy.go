@@ -119,8 +119,11 @@ func (d *DCopy) Fields() []string {
 // the temporary copy of the Dataset.
 func (d *DCopy) Release() error {
 	if !d.isReleased {
-		d.isReleased = true
-		return os.RemoveAll(d.tmpDir)
+		err := os.RemoveAll(d.tmpDir)
+		if err == nil {
+			d.isReleased = true
+		}
+		return err
 	}
 	return ddataset.ErrReleased
 }

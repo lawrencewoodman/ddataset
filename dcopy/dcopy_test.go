@@ -40,7 +40,11 @@ func TestNew(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Release()
+		defer func() {
+			if err := cds.Release(); err != nil {
+				t.Error("Release: ", err)
+			}
+		}()
 
 		for i := 0; i < 10; i++ {
 			if err := testhelpers.CheckDatasetsEqual(ds, cds); err != nil {
@@ -68,7 +72,11 @@ func TestNew_tmpdir_specified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer cds.Release()
+	defer func() {
+		if err := cds.Release(); err != nil {
+			t.Error("Release: ", err)
+		}
+	}()
 	files, err := ioutil.ReadDir(tmpDir)
 	if err != nil {
 		t.Fatalf("ReadDir: %s", err)
@@ -146,7 +154,11 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Release()
+		defer func() {
+			if err := cds.Release(); err != nil {
+				t.Error("Release: ", err)
+			}
+		}()
 		dsConn, err := ds.Open()
 		if err != nil {
 			t.Fatalf("ds.Open() err: %s", err)
@@ -186,7 +198,11 @@ func TestOpen_multiple_conns(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Release()
+		defer func() {
+			if err := cds.Release(); err != nil {
+				t.Error("Release: ", err)
+			}
+		}()
 		cdsConns := make([]ddataset.Conn, numConns)
 		for i := range cdsConns {
 			cdsConns[i], err = cds.Open()
@@ -232,13 +248,17 @@ func TestFields(t *testing.T) {
 		"pdays", "previous", "poutcome", "y",
 	}
 	ds := dcsv.New(filename, true, ';', fieldNames)
-	rds, err := New(ds, "")
+	cds, err := New(ds, "")
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer rds.Release()
+	defer func() {
+		if err := cds.Release(); err != nil {
+			t.Error("Release: ", err)
+		}
+	}()
 
-	got := rds.Fields()
+	got := cds.Fields()
 	if !reflect.DeepEqual(got, fieldNames) {
 		t.Errorf("Fields() - got: %s, want: %s", got, fieldNames)
 	}
@@ -284,7 +304,11 @@ func TestNext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %s", err)
 		}
-		defer cds.Release()
+		defer func() {
+			if err := cds.Release(); err != nil {
+				t.Error("Release: ", err)
+			}
+		}()
 		conn, err := cds.Open()
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
@@ -319,7 +343,11 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer cds.Release()
+	defer func() {
+		if err := cds.Release(); err != nil {
+			t.Error("Release: ", err)
+		}
+	}()
 	numSums := 10
 	sumBalances := make([]int64, numSums)
 
@@ -358,7 +386,11 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %s", err)
 	}
-	defer cds.Release()
+	defer func() {
+		if err := cds.Release(); err != nil {
+			t.Error("Release: ", err)
+		}
+	}()
 
 	sumBalances := make(chan int64, numGoroutines)
 	wg := sync.WaitGroup{}
