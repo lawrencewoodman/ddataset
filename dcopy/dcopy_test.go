@@ -163,10 +163,12 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ds.Open() err: %s", err)
 		}
+		defer dsConn.Close()
 		cdsConn, err := cds.Open()
 		if err != nil {
 			t.Fatalf("cds.Open() err: %s", err)
 		}
+		defer cdsConn.Close()
 
 		if err := testhelpers.CheckDatasetConnsEqual(dsConn, cdsConn); err != nil {
 			t.Errorf("checkDatasetConnsEqual err: %s", err)
@@ -209,6 +211,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cds.Open() err: %s", err)
 			}
+			defer cdsConns[i].Close()
 		}
 
 		for _, c := range cdsConns {
@@ -216,6 +219,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cds.Open() err: %s", err)
 			}
+			defer cdsConnRef.Close()
 			if err := testhelpers.CheckDatasetConnsEqual(cdsConnRef, c); err != nil {
 				t.Fatalf("checkDatasetsEqual err: %s", err)
 			}
@@ -313,6 +317,7 @@ func TestNext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
 		}
+		defer conn.Close()
 		numRecords := 0
 		for conn.Next() {
 			numRecords++
@@ -548,6 +553,7 @@ func BenchmarkNext(b *testing.B) {
 		if err != nil {
 			b.Errorf("Open() - filename: %s, err: %s", filename, err)
 		}
+		defer conn.Close()
 		b.StartTimer()
 		for conn.Next() {
 		}
