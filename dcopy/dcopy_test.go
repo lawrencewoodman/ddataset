@@ -268,6 +268,52 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestNumRecords(t *testing.T) {
+	cases := []struct {
+		filename   string
+		hasHeader  bool
+		separator  rune
+		fieldNames []string
+		want       int64
+	}{
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			want: 9,
+		},
+		{filename: filepath.Join("fixtures", "debt.csv"),
+			hasHeader: true,
+			separator: ',',
+			fieldNames: []string{
+				"name", "balance", "num_cards", "martial_status",
+				"tertiary_educated", "success",
+			},
+			want: 10000,
+		},
+	}
+	for i, c := range cases {
+		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
+		cds, err := New(ds, "")
+		if err != nil {
+			t.Fatalf("New: %s", err)
+		}
+		defer func() {
+			if err := cds.Release(); err != nil {
+				t.Error("Release: ", err)
+			}
+		}()
+		got := cds.NumRecords()
+		if got != c.want {
+			t.Errorf("(%d) Records - got: %d, want: %d", i, got, c.want)
+		}
+	}
+}
+
 func TestRelease_error(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	fieldNames := []string{

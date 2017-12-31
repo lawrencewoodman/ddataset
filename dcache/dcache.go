@@ -11,6 +11,7 @@ package dcache
 
 import (
 	"github.com/lawrencewoodman/ddataset"
+	"github.com/lawrencewoodman/ddataset/internal"
 )
 
 // DCache represents a cached Dataset
@@ -104,6 +105,16 @@ func (c *DCache) Fields() []string {
 		return []string{}
 	}
 	return c.dataset.Fields()
+}
+
+// NumRecords returns the number of records in the Dataset.  If there is
+// a problem getting the number of records it returns -1.  NOTE: The returned
+// value can change if the underlying Dataset changes.
+func (d *DCache) NumRecords() int64 {
+	if d.allCached {
+		return int64(d.cachedRows)
+	}
+	return internal.CountNumRecords(d)
 }
 
 // Release releases any resources associated with the Dataset d,

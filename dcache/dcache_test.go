@@ -295,6 +295,73 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestNumRecords(t *testing.T) {
+	cases := []struct {
+		filename     string
+		hasHeader    bool
+		separator    rune
+		fieldNames   []string
+		maxCacheRows int
+		want         int64
+	}{
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			maxCacheRows: 12,
+			want:         9,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			maxCacheRows: 9,
+			want:         9,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			maxCacheRows: 8,
+			want:         9,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			maxCacheRows: 0,
+			want:         9,
+		},
+	}
+	for i, c := range cases {
+		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
+		cds, err := New(ds, c.maxCacheRows)
+		if err != nil {
+			t.Fatalf("(%d) New: %s", i, err)
+		}
+		got := cds.NumRecords()
+		if got != c.want {
+			t.Errorf("(%d) Records - got: %d, want: %d", i, got, c.want)
+		}
+	}
+}
+
 func TestErr(t *testing.T) {
 	cases := []struct {
 		filename     string

@@ -125,6 +125,43 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestNumRecords(t *testing.T) {
+	cases := []struct {
+		filename   string
+		tableName  string
+		fieldNames []string
+		want       int64
+	}{
+		{filename: filepath.Join("fixtures", "users.db"),
+			tableName:  "userinfo",
+			fieldNames: []string{"uid", "username", "dept", "started"},
+			want:       5,
+		},
+		{filename: filepath.Join("fixtures", "debt.db"),
+			tableName: "people",
+			fieldNames: []string{
+				"name",
+				"balance",
+				"numCards",
+				"martialStatus",
+				"tertiaryEducated",
+				"success",
+			},
+			want: 10000,
+		},
+	}
+	for i, c := range cases {
+		ds := New(
+			internal.NewSqlite3Handler(c.filename, c.tableName, 64),
+			c.fieldNames,
+		)
+		got := ds.NumRecords()
+		if got != c.want {
+			t.Errorf("(%d) Records - got: %d, want: %d", i, got, c.want)
+		}
+	}
+}
+
 func TestNext(t *testing.T) {
 	wantNumRecords := 5
 	filename := filepath.Join("fixtures", "users.db")

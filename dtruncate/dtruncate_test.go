@@ -66,6 +66,84 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestNumRecords(t *testing.T) {
+	cases := []struct {
+		filename           string
+		hasHeader          bool
+		separator          rune
+		fieldNames         []string
+		truncateNumRecords int
+		want               int64
+	}{
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			truncateNumRecords: 12,
+			want:               9,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			truncateNumRecords: 9,
+			want:               9,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			truncateNumRecords: 8,
+			want:               8,
+		},
+		{filename: filepath.Join("fixtures", "bank.csv"),
+			hasHeader: true,
+			separator: ';',
+			fieldNames: []string{
+				"age", "job", "marital", "education", "default", "balance",
+				"housing", "loan", "contact", "day", "month", "duration", "campaign",
+				"pdays", "previous", "poutcome", "y",
+			},
+			truncateNumRecords: 0,
+			want:               0,
+		},
+		{filename: filepath.Join("fixtures", "invalid_numfields_at_102.csv"),
+			hasHeader:          false,
+			separator:          ',',
+			fieldNames:         []string{"a", "b", "c", "d", "e"},
+			truncateNumRecords: 101,
+			want:               101,
+		},
+		{filename: filepath.Join("fixtures", "invalid_numfields_at_102.csv"),
+			hasHeader:          false,
+			separator:          ',',
+			fieldNames:         []string{"a", "b", "c", "d", "e"},
+			truncateNumRecords: 102,
+			want:               -1,
+		},
+	}
+	for i, c := range cases {
+		ds := dcsv.New(c.filename, c.hasHeader, c.separator, c.fieldNames)
+		tds := New(ds, c.truncateNumRecords)
+		got := tds.NumRecords()
+		if got != c.want {
+			t.Errorf("(%d) Records - got: %d, want: %d", i, got, c.want)
+		}
+	}
+}
+
 func TestOpen_error_released(t *testing.T) {
 	filename := filepath.Join("fixtures", "bank.csv")
 	separator := ';'

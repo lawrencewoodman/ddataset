@@ -11,6 +11,7 @@ package dtruncate
 
 import (
 	"github.com/lawrencewoodman/ddataset"
+	"github.com/lawrencewoodman/ddataset/internal"
 )
 
 // DTruncate represents a truncated Dataset
@@ -57,6 +58,13 @@ func (d *DTruncate) Open() (ddataset.Conn, error) {
 // Fields returns the field names used by the Dataset
 func (d *DTruncate) Fields() []string {
 	return d.dataset.Fields()
+}
+
+// NumRecords returns the number of records in the Dataset.  If there is
+// a problem getting the number of records it returns -1.  NOTE: The returned
+// value can change if the underlying Dataset changes.
+func (d *DTruncate) NumRecords() int64 {
+	return internal.CountNumRecords(d)
 }
 
 // Release releases any resources associated with the Dataset d,
