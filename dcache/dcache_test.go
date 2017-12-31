@@ -20,7 +20,7 @@ func TestNew(t *testing.T) {
 		filename     string
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -72,7 +72,7 @@ func TestNew_errors(t *testing.T) {
 		filename     string
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 		wantErr      error
 	}{
 		{filename: filepath.Join("fixtures", "invalid_numfields_at_102.csv"),
@@ -117,7 +117,7 @@ func TestRelease_error(t *testing.T) {
 		"housing", "loan", "contact", "day", "month", "duration", "campaign",
 		"pdays", "previous", "poutcome", "y",
 	}
-	maxCacheRows := 100
+	maxCacheRows := int64(100)
 	ds := dcsv.New(filename, true, ';', fieldNames)
 	rds, err := New(ds, maxCacheRows)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestOpen(t *testing.T) {
 		filename     string
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -194,7 +194,7 @@ func TestOpen_multiple_conns(t *testing.T) {
 		filename     string
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';',
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -263,7 +263,7 @@ func TestOpen_error_released(t *testing.T) {
 	fieldNames := []string{"age", "job", "marital", "education", "default",
 		"balance", "housing", "loan", "contact", "day", "month", "duration",
 		"campaign", "pdays", "previous", "poutcome", "y"}
-	maxCacheRows := 100
+	maxCacheRows := int64(100)
 	ds := dcsv.New(filename, true, separator, fieldNames)
 	cds, err := New(ds, maxCacheRows)
 	if err != nil {
@@ -282,7 +282,7 @@ func TestFields(t *testing.T) {
 		"housing", "loan", "contact", "day", "month", "duration", "campaign",
 		"pdays", "previous", "poutcome", "y",
 	}
-	maxCacheRows := 100
+	maxCacheRows := int64(100)
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds, err := New(ds, maxCacheRows)
 	if err != nil {
@@ -301,7 +301,7 @@ func TestNumRecords(t *testing.T) {
 		hasHeader    bool
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 		want         int64
 	}{
 		{filename: filepath.Join("fixtures", "bank.csv"),
@@ -367,7 +367,7 @@ func TestErr(t *testing.T) {
 		filename     string
 		separator    rune
 		fieldNames   []string
-		maxCacheRows int
+		maxCacheRows int64
 		wantErr      error
 	}{
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
@@ -417,7 +417,7 @@ func TestNext(t *testing.T) {
 		separator      rune
 		hasHeader      bool
 		fieldNames     []string
-		maxCacheRows   int
+		maxCacheRows   int64
 		wantNumRecords int
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';', true,
@@ -472,7 +472,7 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 		"tertiaryEducated",
 		"success",
 	}
-	cacheRecords := 100
+	cacheRecords := int64(100)
 	ds := dcsv.New(filename, hasHeader, ',', fieldNames)
 	cds, err := New(ds, cacheRecords)
 	if err != nil {
@@ -496,7 +496,7 @@ func TestOpenNextRead_multiple_conns(t *testing.T) {
 
 func TestOpenNextRead_goroutines(t *testing.T) {
 	cases := []struct {
-		cacheRecords int
+		cacheRecords int64
 	}{
 		{0}, {100}, {1000}, {10000}, {100000},
 	}
@@ -558,7 +558,7 @@ func TestOpenNextRead_goroutines(t *testing.T) {
 
 func BenchmarkOpenNextRead(b *testing.B) {
 	benchmarks := []struct {
-		cacheRecords int
+		cacheRecords int64
 	}{
 		{0}, {100}, {1000}, {10000}, {100000},
 	}
@@ -601,7 +601,7 @@ func BenchmarkOpenNextRead(b *testing.B) {
 
 func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 	benchmarks := []struct {
-		cacheRecords int
+		cacheRecords int64
 	}{
 		{0}, {100}, {1000}, {10000}, {100000},
 	}
@@ -654,7 +654,7 @@ func BenchmarkOpenNextRead_goroutines(b *testing.B) {
 
 func BenchmarkNext(b *testing.B) {
 	benchmarks := []struct {
-		cacheRecords int
+		cacheRecords int64
 	}{
 		{0}, {100}, {1000}, {10000}, {100000},
 	}

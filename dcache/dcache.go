@@ -18,9 +18,9 @@ import (
 type DCache struct {
 	dataset      ddataset.Dataset
 	cache        []ddataset.Record
-	maxCacheRows int
+	maxCacheRows int64
 	allCached    bool
-	cachedRows   int
+	cachedRows   int64
 	isReleased   bool
 }
 
@@ -28,7 +28,7 @@ type DCache struct {
 type DCacheConn struct {
 	dataset   *DCache
 	conn      ddataset.Conn
-	recordNum int
+	recordNum int64
 	err       error
 }
 
@@ -39,7 +39,7 @@ type DCacheConn struct {
 // the same.
 func New(
 	dataset ddataset.Dataset,
-	maxCacheRows int,
+	maxCacheRows int64,
 ) (ddataset.Dataset, error) {
 	conn, err := dataset.Open()
 	if err != nil {
@@ -48,7 +48,7 @@ func New(
 	defer conn.Close()
 
 	cache := make([]ddataset.Record, maxCacheRows)
-	cachedRows := 0
+	cachedRows := int64(0)
 	for cachedRows < maxCacheRows && conn.Next() {
 		cache[cachedRows] = conn.Read().Clone()
 		cachedRows++
@@ -112,7 +112,7 @@ func (c *DCache) Fields() []string {
 // value can change if the underlying Dataset changes.
 func (d *DCache) NumRecords() int64 {
 	if d.allCached {
-		return int64(d.cachedRows)
+		return d.cachedRows
 	}
 	return internal.CountNumRecords(d)
 }
@@ -123,7 +123,7 @@ func (d *DCache) Release() error {
 	if !d.isReleased {
 		d.cache = nil
 		d.allCached = false
-		d.maxCacheRows = 0
+		d.maxCacheRows = int64(0)
 		d.isReleased = true
 		return nil
 	}

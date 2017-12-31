@@ -17,7 +17,7 @@ import (
 // DTruncate represents a truncated Dataset
 type DTruncate struct {
 	dataset    ddataset.Dataset
-	numRecords int
+	numRecords int64
 	isReleased bool
 }
 
@@ -25,12 +25,12 @@ type DTruncate struct {
 type DTruncateConn struct {
 	dataset   *DTruncate
 	conn      ddataset.Conn
-	recordNum int
+	recordNum int64
 	err       error
 }
 
 // New creates a new DTruncate Dataset
-func New(dataset ddataset.Dataset, numRecords int) ddataset.Dataset {
+func New(dataset ddataset.Dataset, numRecords int64) ddataset.Dataset {
 	return &DTruncate{
 		dataset:    dataset,
 		numRecords: numRecords,

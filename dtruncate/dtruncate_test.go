@@ -18,7 +18,7 @@ func TestOpen(t *testing.T) {
 	cases := []struct {
 		filename   string
 		fieldNames []string
-		numRecords int
+		numRecords int64
 	}{
 		{filepath.Join("fixtures", "bank.csv"),
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -38,7 +38,7 @@ func TestOpen(t *testing.T) {
 func TestOpen_errors(t *testing.T) {
 	filename := "missing.csv"
 	fieldNames := []string{"age", "occupation"}
-	numRecords := 10
+	numRecords := int64(10)
 	wantErr := &os.PathError{"open", "missing.csv", syscall.ENOENT}
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds := New(ds, numRecords)
@@ -56,7 +56,7 @@ func TestFields(t *testing.T) {
 		"housing", "loan", "contact", "day", "month", "duration", "campaign",
 		"pdays", "previous", "poutcome", "y",
 	}
-	numRecords := 3
+	numRecords := int64(3)
 	ds := dcsv.New(filename, false, ';', fieldNames)
 	rds := New(ds, numRecords)
 
@@ -72,7 +72,7 @@ func TestNumRecords(t *testing.T) {
 		hasHeader          bool
 		separator          rune
 		fieldNames         []string
-		truncateNumRecords int
+		truncateNumRecords int64
 		want               int64
 	}{
 		{filename: filepath.Join("fixtures", "bank.csv"),
@@ -150,7 +150,7 @@ func TestOpen_error_released(t *testing.T) {
 	fieldNames := []string{"age", "job", "marital", "education", "default",
 		"balance", "housing", "loan", "contact", "day", "month", "duration",
 		"campaign", "pdays", "previous", "poutcome", "y"}
-	numRecords := 3
+	numRecords := int64(3)
 	ds := dcsv.New(filename, true, separator, fieldNames)
 	rds := New(ds, numRecords)
 	rds.Release()
@@ -166,7 +166,7 @@ func TestRelease_error(t *testing.T) {
 		"housing", "loan", "contact", "day", "month", "duration", "campaign",
 		"pdays", "previous", "poutcome", "y",
 	}
-	numRecords := 3
+	numRecords := int64(3)
 	ds := dcsv.New(filename, true, ';', fieldNames)
 	rds := New(ds, numRecords)
 	if err := rds.Release(); err != nil {
@@ -184,7 +184,7 @@ func TestRead(t *testing.T) {
 		hasHeader       bool
 		fieldNames      []string
 		wantNumColumns  int
-		wantNumRecords  int
+		wantNumRecords  int64
 		wantThirdRecord ddataset.Record
 	}{
 		{filepath.Join("fixtures", "bank.csv"), false,
@@ -241,7 +241,7 @@ func TestRead(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
 		}
-		gotNumRecords := 0
+		gotNumRecords := int64(0)
 		for conn.Next() {
 			gotNumRecords++
 			record := conn.Read()
@@ -272,7 +272,7 @@ func TestErr(t *testing.T) {
 		filename   string
 		separator  rune
 		fieldNames []string
-		numRecords int
+		numRecords int64
 		wantErr    error
 	}{
 		{filepath.Join("fixtures", "invalid_numfields_at_102.csv"), ',',
@@ -325,7 +325,7 @@ func TestNext(t *testing.T) {
 		separator      rune
 		hasHeader      bool
 		fieldNames     []string
-		wantNumRecords int
+		wantNumRecords int64
 	}{
 		{filepath.Join("fixtures", "bank.csv"), ';', true,
 			[]string{"age", "job", "marital", "education", "default", "balance",
@@ -342,7 +342,7 @@ func TestNext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open() - filename: %s, err: %s", c.filename, err)
 		}
-		numRecords := 0
+		numRecords := int64(0)
 		for conn.Next() {
 			numRecords++
 		}
@@ -363,7 +363,7 @@ func TestNext_errors(t *testing.T) {
 		hasHeader  bool
 		fieldNames []string
 		stopRow    int
-		numRecords int
+		numRecords int64
 		wantErr    error
 	}{
 		{filename: filepath.Join("fixtures", "bank.csv"),
