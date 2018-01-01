@@ -160,14 +160,3 @@ func (c *DCopyConn) Read() ddataset.Record {
 func (c *DCopyConn) Close() error {
 	return c.conn.Close()
 }
-
-func getRecords(conn ddataset.Conn, num int) ([]ddataset.Record, error) {
-	n := 0
-	records := []ddataset.Record{}
-	for n < num && conn.Next() {
-		record := conn.Read().Clone()
-		n++
-		records = append(records, record)
-	}
-	return records, conn.Err()
-}
