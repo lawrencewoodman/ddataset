@@ -4,6 +4,8 @@
 // TODO: Generate an error from Next() by creating a database then closing it
 //       after one run through for next() loop then run next() again
 
+// +build -nosqlite3
+
 package dsql
 
 import (
