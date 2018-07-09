@@ -21,7 +21,6 @@ import (
 
 	"github.com/lawrencewoodman/ddataset"
 	"github.com/lawrencewoodman/ddataset/dcsv"
-	"github.com/lawrencewoodman/ddataset/internal"
 )
 
 // DCopy represents a copy of a Dataset
@@ -63,8 +62,10 @@ func New(dataset ddataset.Dataset, tmpDir string) (ddataset.Dataset, error) {
 	}
 	defer conn.Close()
 
+	numRecords := int64(0)
 	strRecord := make([]string, len(dataset.Fields()))
 	for conn.Next() {
+		numRecords++
 		record := conn.Read()
 		for i, f := range dataset.Fields() {
 			strRecord[i] = record[f].String()
@@ -90,7 +91,7 @@ func New(dataset ddataset.Dataset, tmpDir string) (ddataset.Dataset, error) {
 		dataset:    dcsv.New(copyFilename, false, ',', dataset.Fields()),
 		tmpDir:     tmpDir,
 		isReleased: false,
-		numRecords: -1,
+		numRecords: numRecords,
 	}, nil
 }
 
@@ -117,13 +118,8 @@ func (d *DCopy) Fields() []string {
 	return d.dataset.Fields()
 }
 
-// NumRecords returns the number of records in the Dataset.  If there is
-// a problem getting the number of records it returns -1.
+// NumRecords returns the number of records in the Dataset.
 func (d *DCopy) NumRecords() int64 {
-	if d.numRecords != -1 {
-		return d.numRecords
-	}
-	d.numRecords = internal.CountNumRecords(d)
 	return d.numRecords
 }
 
